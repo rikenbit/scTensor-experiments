@@ -1,0 +1,538 @@
+from snakemake.utils import min_version
+
+#
+# Setting
+#
+min_version("5.8.1")
+configfile: "config.yaml"
+
+container: "docker://koki/sctensor-experiments:latest"
+
+SAMPLES = [
+    "3Celltypes_1CCIPatterns_OnetoOne",
+    "5Celltypes_1CCIPatterns_OnetoOne",
+    "10Celltypes_1CCIPatterns_OnetoOne",
+    "20Celltypes_1CCIPatterns_OnetoOne",
+    "30Celltypes_1CCIPatterns_OnetoOne",
+    "3Celltypes_3CCIPatterns_OnetoOne",
+    "5Celltypes_3CCIPatterns_OnetoOne",
+    "10Celltypes_3CCIPatterns_OnetoOne",
+    "20Celltypes_3CCIPatterns_OnetoOne",
+    "30Celltypes_3CCIPatterns_OnetoOne",
+    "3Celltypes_5CCIPatterns_OnetoOne",
+    "5Celltypes_5CCIPatterns_OnetoOne",
+    "10Celltypes_5CCIPatterns_OnetoOne",
+    "20Celltypes_5CCIPatterns_OnetoOne",
+    "30Celltypes_5CCIPatterns_OnetoOne",
+    "3Celltypes_1CCIPatterns_ManytoMany",
+    "5Celltypes_1CCIPatterns_ManytoMany",
+    "10Celltypes_1CCIPatterns_ManytoMany",
+    "20Celltypes_1CCIPatterns_ManytoMany",
+    "30Celltypes_1CCIPatterns_ManytoMany",
+    "3Celltypes_3CCIPatterns_ManytoMany",
+    "5Celltypes_3CCIPatterns_ManytoMany",
+    "10Celltypes_3CCIPatterns_ManytoMany",
+    "20Celltypes_3CCIPatterns_ManytoMany",
+    "30Celltypes_3CCIPatterns_ManytoMany",
+    "3Celltypes_5CCIPatterns_ManytoMany",
+    "5Celltypes_5CCIPatterns_ManytoMany",
+    "10Celltypes_5CCIPatterns_ManytoMany",
+    "20Celltypes_5CCIPatterns_ManytoMany",
+    "30Celltypes_5CCIPatterns_ManytoMany"]
+
+METHODS = [
+    "labelpermutation_tensor",
+    "labelpermutation",
+    "labelpermutation2_tensor",
+    "labelpermutation2",
+    "halpern_tensor",
+    "halpern",
+    "cabelloaguilar_tensor",
+    "cabelloaguilar",
+    "previous_sctensor",
+    "sctensor"]
+
+OTHERMETHODS = [
+    "labelpermutation_tensor",
+    "labelpermutation",
+    "labelpermutation2_tensor",
+    "labelpermutation2",
+    "halpern_tensor",
+    "halpern",
+    "cabelloaguilar_tensor",
+    "cabelloaguilar"]
+
+BINMETHODS = [
+    "labelpermutation",
+    "labelpermutation2",
+    "halpern",
+    "cabelloaguilar",
+    "previous_sctensor",
+    "sctensor"]
+
+ES = ["E2", "E5", "E10"]
+
+IDS = [str(x) for x in list(range(1, 6))]
+
+rule syn_all:
+    input:
+        expand('plot/{e}/ROC/{method}/{sample}.png',
+            e=ES, method=METHODS, sample=SAMPLES),
+        expand('plot/{e}/{types}/{method}.png',
+            e=ES, types=['AUC', 'Time', 'Memory'],
+            method=METHODS),
+        expand('plot/{e}/F/{binmethod}.png',
+            e=ES, binmethod=BINMETHODS)
+
+rule cellcellsimulate:
+    output:
+        touch("data/{e}/{sample}.RData")
+    wildcard_constraints:
+        e='|'.join([re.escape(x) for x in ES]),
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/cellcellsimulate_{e}_{sample}.txt'
+    log:
+        'logs/cellcellsimulate_{e}_{sample}.log'
+    shell:
+        'src/cellcellsimulate.sh {wildcards.e} {output} > {log}'
+
+rule groundtruth:
+    output:
+        touch("data/groundtruth/{sample}.RData")
+    wildcard_constraints:
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/groundtruth_{sample}.txt'
+    log:
+        'logs/groundtruth_{sample}.log'
+    shell:
+        'src/groundtruth.sh {output} > {log}'
+
+rule syn_othermethod:
+    input:
+        'data/{e}/{sample}.RData'
+    output:
+        touch('output/{e}/{othermethod}/{sample}.RData')
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        e='|'.join([re.escape(x) for x in ES]),
+        othermethod='|'.join([re.escape(x) for x in OTHERMETHODS]),
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/{e}_{othermethod}_{sample}.txt'
+    log:
+        'logs/{e}_{othermethod}_{sample}.log'
+    shell:
+        'src/{wildcards.othermethod}.sh {input} {output} > {log}'
+
+rule syn_previous_sctensor:
+    input:
+        'data/{e}/{sample}.RData'
+    output:
+        touch('output/{e}/previous_sctensor/{id}/{sample}.RData')
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        e='|'.join([re.escape(x) for x in ES]),
+        id='|'.join([re.escape(x) for x in IDS]),
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/previous_sctensor_{e}_{id}_{sample}.txt'
+    log:
+        'logs/previous_sctensor_{e}_{id}_{sample}.log'
+    shell:
+        'src/previous_sctensor.sh {input} {output} > {log}'
+
+rule syn_sctensor:
+    input:
+        'data/{e}/{sample}.RData'
+    output:
+        touch('output/{e}/sctensor/{id}/{sample}.RData')
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        e='|'.join([re.escape(x) for x in ES]),
+        id='|'.join([re.escape(x) for x in IDS]),
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/sctensor_{e}_{id}_{sample}.txt'
+    log:
+        'logs/sctensor_{e}_{id}_{sample}.log'
+    shell:
+        'src/sctensor.sh {input} {output} > {log}'
+
+def aggregate_previous_sctensor_results_e2(sample):
+    out = []
+    for j in range(len(IDS)):
+        out.append('output/E2/previous_sctensor/' + str(j+1) + '/' + sample[0] + '.RData')
+    return(out)
+
+def aggregate_previous_sctensor_results_e5(sample):
+    out = []
+    for j in range(len(IDS)):
+        out.append('output/E5/previous_sctensor/' + str(j+1) + '/' + sample[0] + '.RData')
+    return(out)
+
+def aggregate_previous_sctensor_results_e10(sample):
+    out = []
+    for j in range(len(IDS)):
+        out.append('output/E10/previous_sctensor/' + str(j+1) + '/' + sample[0] + '.RData')
+    return(out)
+
+def aggregate_sctensor_results_e2(sample):
+    out = []
+    for j in range(len(IDS)):
+        out.append('output/E2/sctensor/' + str(j+1) + '/' + sample[0] + '.RData')
+    return(out)
+
+def aggregate_sctensor_results_e5(sample):
+    out = []
+    for j in range(len(IDS)):
+        out.append('output/E5/sctensor/' + str(j+1) + '/' + sample[0] + '.RData')
+    return(out)
+
+def aggregate_sctensor_results_e10(sample):
+    out = []
+    for j in range(len(IDS)):
+        out.append('output/E10/sctensor/' + str(j+1) + '/' + sample[0] + '.RData')
+    return(out)
+
+rule syn_aggregate_previous_sctensor_e2:
+    input:
+        aggregate_previous_sctensor_results_e2
+    output:
+        touch('output/E2/previous_sctensor/{sample}.RData')
+    wildcard_constraints:
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/aggregate_previous_sctensor_E2_{sample}.txt'
+    log:
+        'logs/aggregate_previous_sctensor_E2_{sample}.log'
+    shell:
+        'src/aggregate_previous_sctensor.sh {input} {output} > {log}'
+
+rule syn_aggregate_previous_sctensor_e5:
+    input:
+        aggregate_previous_sctensor_results_e5
+    output:
+        touch('output/E5/previous_sctensor/{sample}.RData')
+    wildcard_constraints:
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/aggregate_previous_sctensor_E5_{sample}.txt'
+    log:
+        'logs/aggregate_previous_sctensor_E5_{sample}.log'
+    shell:
+        'src/aggregate_previous_sctensor.sh {input} {output} > {log}'
+
+rule syn_aggregate_previous_sctensor_e10:
+    input:
+        aggregate_previous_sctensor_results_e10
+    output:
+        touch('output/E10/previous_sctensor/{sample}.RData')
+    wildcard_constraints:
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/aggregate_previous_sctensor_E10_{sample}.txt'
+    log:
+        'logs/aggregate_previous_sctensor_E10_{sample}.log'
+    shell:
+        'src/aggregate_previous_sctensor.sh {input} {output} > {log}'
+
+rule syn_aggregate_sctensor_e2:
+    input:
+        aggregate_sctensor_results_e2
+    output:
+        touch('output/E2/sctensor/{sample}.RData')
+    wildcard_constraints:
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/aggregate_sctensor_E2_{sample}.txt'
+    log:
+        'logs/aggregate_sctensor_E2_{sample}.log'
+    shell:
+        'src/aggregate_sctensor.sh {input} {output} > {log}'
+
+rule syn_aggregate_sctensor_e5:
+    input:
+        aggregate_sctensor_results_e5
+    output:
+        touch('output/E5/sctensor/{sample}.RData')
+    wildcard_constraints:
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/aggregate_sctensor_E5_{sample}.txt'
+    log:
+        'logs/aggregate_sctensor_E5_{sample}.log'
+    shell:
+        'src/aggregate_sctensor.sh {input} {output} > {log}'
+
+rule syn_aggregate_sctensor_e10:
+    input:
+        aggregate_sctensor_results_e10
+    output:
+        touch('output/E10/sctensor/{sample}.RData')
+    wildcard_constraints:
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/aggregate_sctensor_E10_{sample}.txt'
+    log:
+        'logs/aggregate_sctensor_E10_{sample}.log'
+    shell:
+        'src/aggregate_sctensor.sh {input} {output} > {log}'
+
+rule syn_roc_auc_bin_f:
+    input:
+        in1='output/{e}/{method}/{sample}.RData',
+        in2='data/groundtruth/{sample}.RData'
+    output:
+        out1=touch('output/{e}/{method}/ROC/{sample}.RData'),
+        out2=touch('output/{e}/{method}/AUC/{sample}.RData'),
+        out3=touch('output/{e}/{method}/BIN/{sample}.RData'),
+        out4=touch('output/{e}/{method}/F/{sample}.RData')
+    resources:
+        mem_gb=5000
+    wildcard_constraints:
+        e='|'.join([re.escape(x) for x in ES]),
+        method='|'.join([re.escape(x) for x in METHODS]),
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/roc_auc_bin_f_{e}_{method}_{sample}.txt'
+    log:
+        'logs/roc_auc_bin_f_{e}_{method}_{sample}.log'
+    shell:
+        'src/roc_auc_bin_f.sh {input} {output} > {log}'
+
+rule syn_plot_roc_auc_f:
+    input:
+        in1='output/{e}/{method}/ROC/{sample}.RData',
+        in2='output/{e}/{method}/AUC/{sample}.RData',
+        in3='output/{e}/{method}/F/{sample}.RData'
+    output:
+        touch('plot/{e}/ROC/{method}/{sample}.png')
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        e='|'.join([re.escape(x) for x in ES]),
+        method='|'.join([re.escape(x) for x in METHODS]),
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/plot_roc_auc_f_{e}_{method}_{sample}.txt'
+    log:
+        'logs/plot_roc_auc_f_{e}_{method}_{sample}.log'
+    shell:
+        'src/plot_roc_auc_f.sh {input.in1} {input.in2} {input.in3} {output} > {log}'
+
+
+
+
+
+
+
+
+
+def aggregate_method_e2(method):
+    out = []
+    for i in range(len(SAMPLES)):
+        out.append('output/E2/' + method[0] + '/' + SAMPLES[i] + '.RData')
+    return(out)
+
+def aggregate_method_e5(method):
+    out = []
+    for i in range(len(SAMPLES)):
+        out.append('output/E5/' + method[0] + '/' + SAMPLES[i] + '.RData')
+    return(out)
+
+def aggregate_method_e10(method):
+    out = []
+    for i in range(len(SAMPLES)):
+        out.append('output/E10/' + method[0] + '/' + SAMPLES[i] + '.RData')
+    return(out)
+
+rule syn_plot_auc_e2:
+    input:
+        aggregate_method_e2
+    output:
+        touch('plot/E2/AUC/{method}.png')
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        method='|'.join([re.escape(x) for x in METHODS])
+    benchmark:
+        'benchmarks/plot_auc_E2_{method}.txt'
+    log:
+        'logs/plot_auc_E2_{method}.log'
+    shell:
+        'src/plot_auc.sh {wildcards.method} E2 {output} > {log}'
+
+rule syn_plot_auc_e5:
+    input:
+        aggregate_method_e5
+    output:
+        touch('plot/E5/AUC/{method}.png')
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        method='|'.join([re.escape(x) for x in METHODS])
+    benchmark:
+        'benchmarks/plot_auc_E5_{method}.txt'
+    log:
+        'logs/plot_auc_E5_{method}.log'
+    shell:
+        'src/plot_auc.sh {wildcards.method} E5 {output} > {log}'
+
+rule syn_plot_auc_e10:
+    input:
+        aggregate_method_e10
+    output:
+        touch('plot/E10/AUC/{method}.png')
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        method='|'.join([re.escape(x) for x in METHODS])
+    benchmark:
+        'benchmarks/plot_auc_E10_{method}.txt'
+    log:
+        'logs/plot_auc_E10_{method}.log'
+    shell:
+        'src/plot_auc.sh {wildcards.method} E10 {output} > {log}'
+
+rule syn_plot_f_e2:
+    input:
+        aggregate_method_e2
+    output:
+        touch('plot/E2/F/{binmethod}.png')
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_f_E2_{binmethod}.txt'
+    log:
+        'logs/plot_f_E2_{binmethod}.log'
+    shell:
+        'src/plot_f.sh {wildcards.binmethod} E2 {output} > {log}'
+
+rule syn_plot_f_e5:
+    input:
+        aggregate_method_e5
+    output:
+        touch('plot/E5/F/{binmethod}.png')
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_f_E5_{binmethod}.txt'
+    log:
+        'logs/plot_f_E5_{binmethod}.log'
+    shell:
+        'src/plot_f.sh {wildcards.binmethod} E5 {output} > {log}'
+
+rule syn_plot_f_e10:
+    input:
+        aggregate_method_e10
+    output:
+        touch('plot/E10/F/{binmethod}.png')
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_f_E10_{binmethod}.txt'
+    log:
+        'logs/plot_f_E10_{binmethod}.log'
+    shell:
+        'src/plot_f.sh {wildcards.binmethod} E10 {output} > {log}'
+
+rule syn_plot_time_e2:
+    input:
+        aggregate_method_e2
+    output:
+        touch('plot/E2/Time/{method}.png')
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        method='|'.join([re.escape(x) for x in METHODS])
+    benchmark:
+        'benchmarks/plot_time_E2_{method}.txt'
+    log:
+        'logs/plot_time_E2_{method}.log'
+    shell:
+        'src/plot_time.sh {wildcards.method} E2 {output} > {log}'
+
+rule syn_plot_time_e5:
+    input:
+        aggregate_method_e5
+    output:
+        touch('plot/E5/Time/{method}.png')
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        method='|'.join([re.escape(x) for x in METHODS])
+    benchmark:
+        'benchmarks/plot_time_E5_{method}.txt'
+    log:
+        'logs/plot_time_E5_{method}.log'
+    shell:
+        'src/plot_time.sh {wildcards.method} E5 {output} > {log}'
+
+rule syn_plot_time_e10:
+    input:
+        aggregate_method_e10
+    output:
+        touch('plot/E10/Time/{method}.png')
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        method='|'.join([re.escape(x) for x in METHODS])
+    benchmark:
+        'benchmarks/plot_time_E10_{method}.txt'
+    log:
+        'logs/plot_time_E10_{method}.log'
+    shell:
+        'src/plot_time.sh {wildcards.method} E10 {output} > {log}'
+
+rule syn_plot_memory_e2:
+    input:
+        aggregate_method_e2
+    output:
+        touch('plot/E2/Memory/{method}.png')
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        method='|'.join([re.escape(x) for x in METHODS])
+    benchmark:
+        'benchmarks/plot_memory_E2_{method}.txt'
+    log:
+        'logs/plot_memory_E2_{method}.log'
+    shell:
+        'src/plot_memory.sh {wildcards.method} E2 {output} > {log}'
+
+rule syn_plot_memory_e5:
+    input:
+        aggregate_method_e5
+    output:
+        touch('plot/E5/Memory/{method}.png')
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        method='|'.join([re.escape(x) for x in METHODS])
+    benchmark:
+        'benchmarks/plot_memory_E5_{method}.txt'
+    log:
+        'logs/plot_memory_E5_{method}.log'
+    shell:
+        'src/plot_memory.sh {wildcards.method} E5 {output} > {log}'
+
+rule syn_plot_memory_e10:
+    input:
+        aggregate_method_e10
+    output:
+        touch('plot/E10/Memory/{method}.png')
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        method='|'.join([re.escape(x) for x in METHODS])
+    benchmark:
+        'benchmarks/plot_memory_E10_{method}.txt'
+    log:
+        'logs/plot_memory_E10_{method}.log'
+    shell:
+        'src/plot_memory.sh {wildcards.method} E10 {output} > {log}'

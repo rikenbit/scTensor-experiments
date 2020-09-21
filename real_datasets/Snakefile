@@ -1,0 +1,315 @@
+from snakemake.utils import min_version
+
+#
+# Setting
+#
+min_version("5.8.1")
+configfile: "config.yaml"
+
+container: "docker://koki/sctensor-experiments:latest"
+
+SAMPLES = ["Human_Germline_Female",
+    "Human_FetalKidney",
+    "Human_NicotinehESCs_Nicotine",
+    "Mouse_Uterus"]
+
+METHODS = [
+    "labelpermutation_tensor",
+    "labelpermutation",
+    "labelpermutation2_tensor",
+    "labelpermutation2",
+    "halpern_tensor",
+    "halpern",
+    "cabelloaguilar_tensor",
+    "cabelloaguilar",
+    "previous_sctensor",
+    "sctensor"]
+
+BINMETHODS = [
+    "labelpermutation",
+    "labelpermutation2",
+    "halpern",
+    "cabelloaguilar",
+    "previous_sctensor",
+    "sctensor"]
+
+IDS = [str(x) for x in list(range(1, 6))]
+
+rule real_all:
+    input:
+        expand('plot/ROC/{method}/{sample}.png',
+            method=METHODS, sample=SAMPLES),
+        expand('plot/{types}.png',
+            types=['AUC', 'F', 'Time', 'Memory'])
+
+rule preprocess:
+    output:
+        touch('data/{sample}/{sample}.RData')
+    wildcard_constraints:
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/preprocess_{sample}.txt'
+    log:
+        'logs/preprocess_{sample}.log'
+    shell:
+        'src/preprocess_{wildcards.sample}.sh {output} > {log}'
+
+rule groundtruth:
+    output:
+        touch("data/groundtruth/{sample}.RData")
+    wildcard_constraints:
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/groundtruth_{sample}.txt'
+    log:
+        'logs/groundtruth_{sample}.log'
+    shell:
+        'src/groundtruth.sh {output} > {log}'
+
+rule real_labelpermutaion:
+    input:
+        'data/{sample}/{sample}.RData'
+    output:
+        out1=touch('output/labelpermutation_tensor/{sample}.RData'),
+        out2=touch('output/labelpermutation/{sample}.RData')
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/labelpermutation_{sample}.txt'
+    log:
+        'logs/labelpermutation_{sample}.log'
+    shell:
+        'src/labelpermutation.sh {input} {output.out1} {output.out2} > {log}'
+
+rule real_labelpermutaion2:
+    input:
+        'data/{sample}/{sample}.RData',
+    output:
+        out1=touch('output/labelpermutation2_tensor/{sample}.RData'),
+        out2=touch('output/labelpermutation2/{sample}.RData')
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/labelpermutation2_{sample}.txt'
+    log:
+        'logs/labelpermutation2_{sample}.log'
+    shell:
+        'src/labelpermutation2.sh {input} {output.out1} {output.out2} > {log}'
+
+rule real_halpern:
+    input:
+        'data/{sample}/{sample}.RData',
+    output:
+        out1=touch('output/halpern_tensor/{sample}.RData'),
+        out2=touch('output/halpern/{sample}.RData')
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/halpern_{sample}.txt'
+    log:
+        'logs/halpern_{sample}.log'
+    shell:
+        'src/halpern.sh {input} {output.out1} {output.out2} > {log}'
+
+rule real_cabelloaguilar:
+    input:
+        'data/{sample}/{sample}.RData',
+    output:
+        out1=touch('output/cabelloaguilar_tensor/{sample}.RData'),
+        out2=touch('output/cabelloaguilar/{sample}.RData')
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/cabelloaguilar_{sample}.txt'
+    log:
+        'logs/cabelloaguilar_{sample}.log'
+    shell:
+        'src/cabelloaguilar.sh {input} {output.out1} {output.out2} > {log}'
+
+rule real_previous_sctensor:
+    input:
+        'data/{sample}/{sample}.RData',
+    output:
+        touch('output/previous_sctensor/{id}/{sample}.RData')
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        id='|'.join([re.escape(x) for x in IDS]),
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/previous_sctensor_{id}_{sample}.txt'
+    log:
+        'logs/previous_sctensor_{id}_{sample}.log'
+    shell:
+        'src/previous_sctensor.sh {input} {output} > {log}'
+
+rule real_sctensor:
+    input:
+        'data/{sample}/{sample}.RData',
+    output:
+        touch('output/sctensor/{id}/{sample}.RData')
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        id='|'.join([re.escape(x) for x in IDS]),
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/sctensor_{id}_{sample}.txt'
+    log:
+        'logs/sctensor_{id}_{sample}.log'
+    shell:
+        'src/sctensor.sh {input} {output} > {log}'
+
+def aggregate_previous_sctensor_results(sample):
+    return(['output/previous_sctensor/1/{sample}.RData',
+    'output/previous_sctensor/2/{sample}.RData',
+    'output/previous_sctensor/3/{sample}.RData',
+    'output/previous_sctensor/4/{sample}.RData',
+    'output/previous_sctensor/5/{sample}.RData'])
+
+def aggregate_sctensor_results(sample):
+    return(['output/sctensor/1/{sample}.RData',
+    'output/sctensor/2/{sample}.RData',
+    'output/sctensor/3/{sample}.RData',
+    'output/sctensor/4/{sample}.RData',
+    'output/sctensor/5/{sample}.RData'])
+
+rule real_aggregate_previous_sctensor:
+    input:
+        aggregate_previous_sctensor_results
+    output:
+        touch('output/previous_sctensor/{sample}.RData')
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/aggregate_previous_sctensor_{sample}.txt'
+    log:
+        'logs/aggregate_previous_sctensor_{sample}.log'
+    shell:
+        'src/aggregate_previous_sctensor.sh {input} {output} > {log}'
+
+rule real_aggregate_sctensor:
+    input:
+        aggregate_sctensor_results
+    output:
+        touch('output/sctensor/{sample}.RData')
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/aggregate_sctensor_{sample}.txt'
+    log:
+        'logs/aggregate_sctensor_{sample}.log'
+    shell:
+        'src/aggregate_sctensor.sh {input} {output} > {log}'
+
+rule real_roc_auc_bin_f:
+    input:
+        in1='output/{method}/{sample}.RData',
+        in2='data/groundtruth/{sample}.RData'
+    output:
+        out1=touch('output/{method}/ROC/{sample}.RData'),
+        out2=touch('output/{method}/AUC/{sample}.RData'),
+        out3=touch('output/{method}/BIN/{sample}.RData'),
+        out4=touch('output/{method}/F/{sample}.RData')
+    resources:
+        mem_gb=500
+    wildcard_constraints:
+        method='|'.join([re.escape(x) for x in METHODS]),
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/roc_auc_bin_f_{method}_{sample}.txt'
+    log:
+        'logs/roc_auc_bin_f_{method}_{sample}.log'
+    shell:
+        'src/roc_auc_bin_f.sh {input.in1} {input.in2} {output.out1} {output.out2} {output.out3} {output.out4} > {log}'
+
+rule real_plot_roc_auc_f:
+    input:
+        in1='output/{method}/ROC/{sample}.RData',
+        in2='output/{method}/AUC/{sample}.RData',
+        in3='output/{method}/F/{sample}.RData'
+    output:
+        touch('plot/ROC/{method}/{sample}.png')
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        method='|'.join([re.escape(x) for x in METHODS]),
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/plot_roc_auc_f_{method}_{sample}.txt'
+    log:
+        'logs/plot_roc_auc_f_{method}_{sample}.log'
+    shell:
+        'src/plot_roc_auc_f.sh {input.in1} {input.in2} {input.in3} {output} > {log}'
+
+rule real_plot_auc:
+    input:
+        expand('output/{method}/{sample}.RData',
+            method=METHODS, sample=SAMPLES)
+    output:
+        touch('plot/AUC.png')
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_auc.txt'
+    log:
+        'logs/plot_auc.log'
+    shell:
+        'src/plot_auc.sh {output} > {log}'
+
+rule real_plot_f:
+    input:
+        expand('output/{binmethod}/{sample}.RData',
+            binmethod=BINMETHODS, sample=SAMPLES)
+    output:
+        touch('plot/F.png')
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_f.txt'
+    log:
+        'logs/plot_f.log'
+    shell:
+        'src/plot_f.sh {output} > {log}'
+
+rule real_plot_time:
+    input:
+        expand('output/{method}/{sample}.RData',
+            method=METHODS, sample=SAMPLES)
+    output:
+        touch('plot/Time.png')
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_time.txt'
+    log:
+        'logs/plot_time.log'
+    shell:
+        'src/plot_time.sh {output} > {log}'
+
+rule real_plot_memory:
+    input:
+        expand('output/{method}/{sample}.RData',
+            method=METHODS, sample=SAMPLES)
+    output:
+        touch('plot/Memory.png')
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_memory.txt'
+    log:
+        'logs/plot_memory.log'
+    shell:
+        'src/plot_memory.sh {output} > {log}'
