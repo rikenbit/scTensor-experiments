@@ -1,0 +1,14 @@
+._*
+*/.snakemake
+.fuse_hidden
+*/.fuse_hidden
+*/*/.fuse_hidden
+*/*/*/.fuse_hidden
+*/*/*/*/.fuse_hidden
+.DS_Store
+*/.DS_Store
+*/*/.DS_Store
+*/*/*/.DS_Store
+*/*/*/*/.DS_Store
+synthetic_datasets
+real_datasets
