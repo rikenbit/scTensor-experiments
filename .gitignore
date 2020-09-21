@@ -19,9 +19,7 @@ synthetic_datasets/benchmarks
 synthetic_datasets/logs
 synthetic_datasets/data
 synthetic_datasets/output
-synthetic_datasets/plot
 real_datasets/benchmarks
 real_datasets/logs
 real_datasets/data
 real_datasets/output
-real_datasets/plot
