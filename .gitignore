@@ -16,10 +16,11 @@
 */*/*/.DS_Store
 */*/*/*/.DS_Store
 synthetic_datasets/benchmarks
-synthetic_datasets/logs
-synthetic_datasets/data
-synthetic_datasets/output
 real_datasets/benchmarks
+synthetic_datasets/logs
 real_datasets/logs
-real_datasets/data
+synthetic_datasets/output
 real_datasets/output
+synthetic_datasets/data
+real_datasets/data/*
+!real_datasets/data/truepairs

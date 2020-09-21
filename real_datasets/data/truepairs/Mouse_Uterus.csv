@@ -1,0 +1,100 @@
+Ligand	Receptor	Source	Target
+Bmp1	Bmpr1a	Stromal	Myocytes
+Bmp1	Bmpr1a	Stromal	Myocytes 2
+Bmp1	Bmpr1a	Stromal	Epithelial
+Bmp1	Bmpr1a	Stromal	Myeloid
+Bmp1	Bmpr1a	Stromal	Mesothelial
+Bmp1	Bmpr1a	Stromal	Pericytes
+Bmp1	Bmpr1a	Stromal	Stromal
+Bmp2	Bmpr1a	Stromal	Myocytes
+Bmp2	Bmpr1a	Stromal	Myocytes 2
+Bmp2	Bmpr1a	Stromal	Epithelial
+Bmp2	Bmpr1a	Stromal	Myeloid
+Bmp2	Bmpr1a	Stromal	Mesothelial
+Bmp2	Bmpr1a	Stromal	Pericytes
+Bmp2	Bmpr1a	Stromal	Stromal
+Bmp7	Bmpr1a	Stromal	Myocytes
+Bmp7	Bmpr1a	Stromal	Myocytes 2
+Bmp7	Bmpr1a	Stromal	Epithelial
+Bmp7	Bmpr1a	Stromal	Myeloid
+Bmp7	Bmpr1a	Stromal	Mesothelial
+Bmp7	Bmpr1a	Stromal	Pericytes
+Bmp7	Bmpr1a	Stromal	Stromal
+Cxcl12	Cxcr4	Stromal	Epithelial
+Efemp2	Bmpr1a	Stromal	Stromal
+Gdf10	Tgfbr2	Stromal	Myeloid
+Gdf10	Tgfbr2	Stromal	Mesothelial
+Gdf10	Tgfbr2	Stromal	Lymphocytes
+Gdf10	Tgfbr2	Stromal	Endothelial
+Gdf10	Tgfbr3	Stromal	Endothelial
+Gdf10	Tgfbr1	Stromal	Myocytes
+Gdf10	Tgfbr1	Stromal	Myocytes 2
+Gdf10	Tgfbr3	Stromal	Myocytes
+Gdf10	Tgfbr3	Stromal	Myocytes 2
+Gdf10	Tgfbr1	Stromal	Epithelial
+Gdf10	Tgfbr1	Stromal	Stromal
+Gdf10	Tgfbr2	Stromal	Stromal
+Gdf10	Tgfbr3	Stromal	Stromal
+Igf1	Igf1r	Stromal	Mesothelial
+Igf1	Igf1r	Stromal	Myocytes
+Igf1	Igf1r	Stromal	Myocytes 2
+Igf1	Igf1r	Stromal	Epithelial
+Igf2	Igf2r	Stromal	Pericytes
+Igf2	Igf2r	Stromal	Endothelial
+Igf2	Igf2r	Stromal	Myocytes
+Igf2	Igf2r	Stromal	Myocytes 2
+Igf2	Igf2r	Stromal	Stromal
+Manf	Kdelr1	Stromal	Myeloid
+Manf	Kdelr2	Stromal	Myeloid
+Manf	Kdelr1	Stromal	Mesothelial
+Manf	Kdelr2	Stromal	Mesothelial
+Manf	Kdelr1	Stromal	Lymphocytes
+Manf	Kdelr2	Stromal	Lymphocytes
+Manf	Kdelr1	Stromal	Pericytes
+Manf	Kdelr2	Stromal	Pericytes
+Manf	Kdelr3	Stromal	Pericytes
+Manf	Kdelr1	Stromal	Endothelial
+Manf	Kdelr2	Stromal	Endothelial
+Manf	Kdelr1	Stromal	Myocytes
+Manf	Kdelr1	Stromal	Myocytes 2
+Manf	Kdelr2	Stromal	Myocytes
+Manf	Kdelr2	Stromal	Myocytes 2
+Manf	Kdelr1	Stromal	Epithelial
+Manf	Kdelr2	Stromal	Epithelial
+Manf	Kdelr1	Stromal	Stromal
+Manf	Kdelr2	Stromal	Stromal
+Manf	Kdelr3	Stromal	Stromal
+Mdk	Ptprb	Stromal	Endothelial
+Ptn	Ptprb	Stromal	Endothelial
+Rspo3	Lgr5	Stromal	Epithelial
+Tgfb2	Tgfbr2	Stromal	Myeloid
+Tgfb2	Tgfbr2	Stromal	Mesothelial
+Tgfb2	Tgfbr2	Stromal	Lymphocytes
+Tgfb2	Tgfbr2	Stromal	Endothelial
+Tgfb2	Tgfbr3	Stromal	Endothelial
+Tgfb2	Tgfbr2	Stromal	Myocytes
+Tgfb2	Tgfbr2	Stromal	Myocytes 2
+Tgfb2	Tgfbr3	Stromal	Myocytes
+Tgfb2	Tgfbr3	Stromal	Myocytes 2
+Tgfb2	Tgfbr1	Stromal	Epithelial
+Tgfb2	Tgfbr1	Stromal	Stromal
+Tgfb2	Tgfbr2	Stromal	Stromal
+Tgfb2	Tgfbr3	Stromal	Stromal
+Tgfb3	Tgfbr2	Stromal	Myeloid
+Tgfb3	Tgfbr2	Stromal	Mesothelial
+Tgfb3	Tgfbr2	Stromal	Lymphocytes
+Tgfb3	Tgfbr2	Stromal	Endothelial
+Tgfb3	Tgfbr3	Stromal	Endothelial
+Tgfb3	Tgfbr2	Stromal	Myocytes
+Tgfb3	Tgfbr2	Stromal	Myocytes 2
+Tgfb3	Tgfbr3	Stromal	Myocytes
+Tgfb3	Tgfbr3	Stromal	Myocytes 2
+Tgfb3	Tgfbr1	Stromal	Epithelial
+Tgfb3	Tgfbr1	Stromal	Stromal
+Tgfb3	Tgfbr2	Stromal	Stromal
+Tgfb3	Tgfbr3	Stromal	Stromal
+Vegfa	Nrp2	Stromal	Myeloid
+Vegfa	Nrp2	Stromal	Endothelial
+Vegfa	Kdr	Stromal	Endothelial
+Vegfa	Nrp2	Stromal	Myocytes
+Vegfa	Nrp2	Stromal	Myocytes 2
