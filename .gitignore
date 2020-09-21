@@ -21,6 +21,8 @@ synthetic_datasets/logs
 real_datasets/logs
 synthetic_datasets/output
 real_datasets/output
-synthetic_datasets/data
+synthetic_datasets/data/*
+!synthetic_datasets/data/README.md
 real_datasets/data/*
+!real_datasets/data/README.md
 !real_datasets/data/truepairs
