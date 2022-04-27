@@ -56,10 +56,10 @@ LefttoRight <- select(Homo.sapiens,
   keytype="SYMBOL",
   keys=rownames(GSE109205))
 
-GSE109205 <- convertToNCBIGeneID(
+GSE109205 <- convertRowID(
 	GSE109205,
 	rownames(GSE109205),
-	LefttoRight)
+	LefttoRight)$output
 
 # Color
 for(i in 0:10){
@@ -113,11 +113,22 @@ celltypes <- label.GSE109205
 ########################################################
 # 3. Ligand-Receptor pairs used in the original paper
 ########################################################
-db <- c(
-	"CELLPHONEDB", "SINGLECELLSIGNALR", "DLRP", "IUPHAR", "HPMR")
+# db <- c(
+# 	"CELLPHONEDB", "SINGLECELLSIGNALR", "DLRP", "IUPHAR", "HPMR")
+db <- c("DLRP", "IUPHAR", "HPMR")
 
-tmp1 <- select(LRBase.Hsa.eg.db, columns=c("GENEID_L", "GENEID_R", "SOURCEDB"), keytype="GENEID_L", keys=rownames(input))
-tmp2 <- select(LRBase.Hsa.eg.db, columns=c("GENEID_L", "GENEID_R", "SOURCEDB"), keytype="GENEID_R", keys=rownames(input))
+# 2021/2/8書き換え部分
+setAnnotationHubOption("CACHE", getwd())
+ah <- AnnotationHub()
+LRBase.Hsa.eg.db <- query(ah, c("LRBaseDb", "Homo sapiens", "v002"))[[1]]
+LRBase.Hsa.eg.db <- LRBaseDb(LRBase.Hsa.eg.db)
+
+tmp1 <- select(LRBase.Hsa.eg.db,
+	columns=c("GENEID_L", "GENEID_R", "SOURCEDB"),
+	keytype="GENEID_L", keys=rownames(input))
+tmp2 <- select(LRBase.Hsa.eg.db,
+	columns=c("GENEID_L", "GENEID_R", "SOURCEDB"),
+	keytype="GENEID_R", keys=rownames(input))
 
 tmp1 <- tmp1[which(tmp1$SOURCEDB %in% db), c("GENEID_L", "GENEID_R")]
 tmp2 <- tmp2[which(tmp2$SOURCEDB %in% db), c("GENEID_L", "GENEID_R")]

@@ -10,6 +10,4 @@
 #SBATCH -p node03-06
 SLURM_RESTART_COUNT=2
 
-echo $@
-
 Rscript src/roc_auc_bin_f.R $@

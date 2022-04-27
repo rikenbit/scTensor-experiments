@@ -1,7 +1,7 @@
 source("src/Functions.R")
 
 # Parameter
-infile <- commandArgs(trailingOnly=TRUE)[1] 
+infile <- commandArgs(trailingOnly=TRUE)[1]
 outfile <- commandArgs(trailingOnly=TRUE)[2]
 
 # Data loading

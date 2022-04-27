@@ -2,6 +2,11 @@ source("src/Functions.R")
 
 # Parameter
 # outfile <- "data/groundtruth/Human_Germline_Female.RData"
+# outfile <- "data/groundtruth/Human_FetalKidney.RData"
+# outfile <- "data/groundtruth/Human_NicotinehESCs_Nicotine.RData"
+# outfile <- "data/groundtruth/Human_HeadandNeckCancer.RData"
+# outfile <- "data/groundtruth/Mouse_Uterus.RData"
+# outfile <- "data/groundtruth/Mouse_VisualCortex.RData"
 outfile <- commandArgs(trailingOnly=TRUE)[1]
 
 # e.g. Mouse_Uterus
@@ -37,17 +42,17 @@ for(i in seq(ntypepairs)){
 	print(uniq.pairs[i,1:2])
 	if(length(grep("Mouse", spl)) == 1){
 		ligandid <- as.character(select(Mus.musculus,
-			columns="GENEID", keytype="SYMBOL",
+			columns="GENEID", keytype="ALIAS",
 			keys=uniq.pairs[i,1])[, "GENEID"])
 		receptorid <- as.character(select(Mus.musculus,
-			columns="GENEID", keytype="SYMBOL",
+			columns="GENEID", keytype="ALIAS",
 			keys=uniq.pairs[i,2])[, "GENEID"])
 	}else{
 		ligandid <- as.character(select(Homo.sapiens,
-			columns="GENEID", keytype="SYMBOL",
+			columns="GENEID", keytype="ALIAS",
 			keys=uniq.pairs[i,1])[, "GENEID"])
 		receptorid <- as.character(select(Homo.sapiens,
-			columns="GENEID", keytype="SYMBOL",
+			columns="GENEID", keytype="ALIAS",
 			keys=uniq.pairs[i,2])[, "GENEID"])
 	}
 	ligandid <- intersect(ligandid, allgeneid)

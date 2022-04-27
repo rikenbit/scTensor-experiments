@@ -3,10 +3,7 @@ from snakemake.utils import min_version
 #
 # Setting
 #
-min_version("5.8.1")
-configfile: "config.yaml"
-
-container: "docker://koki/sctensor-experiments:latest"
+container: "docker://koki/sctensor-experiments:20210818"
 
 SAMPLES = [
     "3Celltypes_1CCIPatterns_OnetoOne",
@@ -70,23 +67,43 @@ BINMETHODS = [
     "previous_sctensor",
     "sctensor"]
 
-ES = ["E2", "E5", "E10"]
+ES = ["E5", "E10"]
 
 IDS = [str(x) for x in list(range(1, 6))]
 
 rule syn_all:
     input:
+        expand('plot/groundtruth/{sample}.png',
+            sample=SAMPLES),
+        expand('plot/{e}/PRC/{method}/{sample}.png',
+            e=ES, method=METHODS, sample=SAMPLES),
         expand('plot/{e}/ROC/{method}/{sample}.png',
             e=ES, method=METHODS, sample=SAMPLES),
         expand('plot/{e}/{types}/{method}.png',
-            e=ES, types=['AUC', 'Time', 'Memory'],
+            e=ES, types=['AUC', 'AUCPR', 'Time', 'Memory'],
             method=METHODS),
-        expand('plot/{e}/F/{binmethod}.png',
-            e=ES, binmethod=BINMETHODS)
+        expand('plot/{e}/{types}/{method}_eachCCI.png',
+            e=ES, types=['AUC', 'AUCPR'], method=METHODS),
+        expand('plot/{e}/{types}/{binmethod}.png',
+            e=ES, types=['F', 'MCC', 'FPR', 'FNR', 'PR'],
+            binmethod=BINMETHODS),
+        expand('plot/{e}/{types}/{binmethod}_eachCCI.png',
+            e=ES, types=['F', 'MCC', 'FPR', 'FNR', 'PR'],
+            binmethod=BINMETHODS),
+        expand('plot/TR.png'),
+        expand('plot/TR_eachCCI.png'),
+        expand('plot/{e}/L-R/CHECK_{method}',
+            e=ES, method=METHODS),
+        expand('plot/{e}/{types}/{types}.png',
+            e=ES, types=['AUC', 'AUCPR', 'Time', 'Memory',
+                'F', 'MCC', 'FPR', 'FNR', 'PR'])
 
+################################
+# Setting
+################################
 rule cellcellsimulate:
     output:
-        touch("data/{e}/{sample}.RData")
+        "data/{e}/{sample}.RData"
     wildcard_constraints:
         e='|'.join([re.escape(x) for x in ES]),
         sample='|'.join([re.escape(x) for x in SAMPLES])
@@ -99,7 +116,7 @@ rule cellcellsimulate:
 
 rule groundtruth:
     output:
-        touch("data/groundtruth/{sample}.RData")
+        "data/groundtruth/{sample}.RData"
     wildcard_constraints:
         sample='|'.join([re.escape(x) for x in SAMPLES])
     benchmark:
@@ -109,11 +126,28 @@ rule groundtruth:
     shell:
         'src/groundtruth.sh {output} > {log}'
 
+rule plot_groundtruth:
+    input:
+        "data/groundtruth/{sample}.RData"
+    output:
+        "plot/groundtruth/{sample}.png"
+    wildcard_constraints:
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/plot_groundtruth_{sample}.txt'
+    log:
+        'logs/plot_groundtruth_{sample}.log'
+    shell:
+        'src/plot_groundtruth.sh {wildcards.sample} {output} > {log}'
+
+################################
+# Benchmark
+################################
 rule syn_othermethod:
     input:
         'data/{e}/{sample}.RData'
     output:
-        touch('output/{e}/{othermethod}/{sample}.RData')
+        'output/{e}/{othermethod}/{sample}.RData'
     resources:
         mem_gb=50
     wildcard_constraints:
@@ -131,7 +165,7 @@ rule syn_previous_sctensor:
     input:
         'data/{e}/{sample}.RData'
     output:
-        touch('output/{e}/previous_sctensor/{id}/{sample}.RData')
+        'output/{e}/previous_sctensor/{id}/{sample}.RData'
     resources:
         mem_gb=50
     wildcard_constraints:
@@ -149,7 +183,7 @@ rule syn_sctensor:
     input:
         'data/{e}/{sample}.RData'
     output:
-        touch('output/{e}/sctensor/{id}/{sample}.RData')
+        'output/{e}/sctensor/{id}/{sample}.RData'
     resources:
         mem_gb=50
     wildcard_constraints:
@@ -163,6 +197,9 @@ rule syn_sctensor:
     shell:
         'src/sctensor.sh {input} {output} > {log}'
 
+################################
+# Aggregate scTensor's Results
+################################
 def aggregate_previous_sctensor_results_e2(sample):
     out = []
     for j in range(len(IDS)):
@@ -203,7 +240,7 @@ rule syn_aggregate_previous_sctensor_e2:
     input:
         aggregate_previous_sctensor_results_e2
     output:
-        touch('output/E2/previous_sctensor/{sample}.RData')
+        'output/E2/previous_sctensor/{sample}.RData'
     wildcard_constraints:
         sample='|'.join([re.escape(x) for x in SAMPLES])
     benchmark:
@@ -217,7 +254,7 @@ rule syn_aggregate_previous_sctensor_e5:
     input:
         aggregate_previous_sctensor_results_e5
     output:
-        touch('output/E5/previous_sctensor/{sample}.RData')
+        'output/E5/previous_sctensor/{sample}.RData'
     wildcard_constraints:
         sample='|'.join([re.escape(x) for x in SAMPLES])
     benchmark:
@@ -231,7 +268,7 @@ rule syn_aggregate_previous_sctensor_e10:
     input:
         aggregate_previous_sctensor_results_e10
     output:
-        touch('output/E10/previous_sctensor/{sample}.RData')
+        'output/E10/previous_sctensor/{sample}.RData'
     wildcard_constraints:
         sample='|'.join([re.escape(x) for x in SAMPLES])
     benchmark:
@@ -245,7 +282,7 @@ rule syn_aggregate_sctensor_e2:
     input:
         aggregate_sctensor_results_e2
     output:
-        touch('output/E2/sctensor/{sample}.RData')
+        'output/E2/sctensor/{sample}.RData'
     wildcard_constraints:
         sample='|'.join([re.escape(x) for x in SAMPLES])
     benchmark:
@@ -259,7 +296,7 @@ rule syn_aggregate_sctensor_e5:
     input:
         aggregate_sctensor_results_e5
     output:
-        touch('output/E5/sctensor/{sample}.RData')
+        'output/E5/sctensor/{sample}.RData'
     wildcard_constraints:
         sample='|'.join([re.escape(x) for x in SAMPLES])
     benchmark:
@@ -273,7 +310,7 @@ rule syn_aggregate_sctensor_e10:
     input:
         aggregate_sctensor_results_e10
     output:
-        touch('output/E10/sctensor/{sample}.RData')
+        'output/E10/sctensor/{sample}.RData'
     wildcard_constraints:
         sample='|'.join([re.escape(x) for x in SAMPLES])
     benchmark:
@@ -283,15 +320,24 @@ rule syn_aggregate_sctensor_e10:
     shell:
         'src/aggregate_sctensor.sh {input} {output} > {log}'
 
+################################
+# Binarization and Scoring
+################################
 rule syn_roc_auc_bin_f:
     input:
         in1='output/{e}/{method}/{sample}.RData',
         in2='data/groundtruth/{sample}.RData'
     output:
-        out1=touch('output/{e}/{method}/ROC/{sample}.RData'),
-        out2=touch('output/{e}/{method}/AUC/{sample}.RData'),
-        out3=touch('output/{e}/{method}/BIN/{sample}.RData'),
-        out4=touch('output/{e}/{method}/F/{sample}.RData')
+        out1='output/{e}/{method}/ROC/{sample}.RData',
+        out2='output/{e}/{method}/AUC/{sample}.RData',
+        out3='output/{e}/{method}/BIN/{sample}.RData',
+        out4='output/{e}/{method}/F/{sample}.RData',
+        out5='output/{e}/{method}/PRC/{sample}.RData',
+        out6='output/{e}/{method}/AUCPR/{sample}.RData',
+        out7='output/{e}/{method}/MCC/{sample}.RData',
+        out8='output/{e}/{method}/FPR/{sample}.RData',
+        out9='output/{e}/{method}/FNR/{sample}.RData',
+        out10='output/{e}/{method}/PR/{sample}.RData'
     resources:
         mem_gb=5000
     wildcard_constraints:
@@ -305,13 +351,16 @@ rule syn_roc_auc_bin_f:
     shell:
         'src/roc_auc_bin_f.sh {input} {output} > {log}'
 
+################################
+# Curve Plot
+################################
 rule syn_plot_roc_auc_f:
     input:
         in1='output/{e}/{method}/ROC/{sample}.RData',
         in2='output/{e}/{method}/AUC/{sample}.RData',
         in3='output/{e}/{method}/F/{sample}.RData'
     output:
-        touch('plot/{e}/ROC/{method}/{sample}.png')
+        'plot/{e}/ROC/{method}/{sample}.png'
     resources:
         mem_gb=50
     wildcard_constraints:
@@ -325,37 +374,86 @@ rule syn_plot_roc_auc_f:
     shell:
         'src/plot_roc_auc_f.sh {input.in1} {input.in2} {input.in3} {output} > {log}'
 
+rule syn_plot_prc_aucpr_mcc:
+    input:
+        in1='data/groundtruth/{sample}.RData',
+        in2='output/{e}/{method}/PRC/{sample}.RData',
+        in3='output/{e}/{method}/AUCPR/{sample}.RData',
+        in4='output/{e}/{method}/MCC/{sample}.RData'
+    output:
+        'plot/{e}/PRC/{method}/{sample}.png'
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        e='|'.join([re.escape(x) for x in ES]),
+        method='|'.join([re.escape(x) for x in METHODS]),
+        sample='|'.join([re.escape(x) for x in SAMPLES])
+    benchmark:
+        'benchmarks/plot_prc_aucpr_mcc_{e}_{method}_{sample}.txt'
+    log:
+        'logs/plot_prc_aucpr_mcc_{e}_{method}_{sample}.log'
+    shell:
+        'src/plot_prc_aucpr_mcc.sh {input.in1} {input.in2} {input.in3} {input.in4} {output} > {log}'
 
-
-
-
-
-
-
-
+################################
+# Helper Functions
+################################
 def aggregate_method_e2(method):
     out = []
     for i in range(len(SAMPLES)):
         out.append('output/E2/' + method[0] + '/' + SAMPLES[i] + '.RData')
+        out.append('output/E2/' + method[0] + '/ROC/' + SAMPLES[i] + '.RData')
+        out.append('output/E2/' + method[0] + '/AUC/' + SAMPLES[i] + '.RData')
+        out.append('output/E2/' + method[0] + '/BIN/' + SAMPLES[i] + '.RData')
+        out.append('output/E2/' + method[0] + '/F/' + SAMPLES[i] + '.RData')
+        out.append('output/E2/' + method[0] + '/PRC/' + SAMPLES[i] + '.RData')
+        out.append('output/E2/' + method[0] + '/AUCPR/' + SAMPLES[i] + '.RData')
+        out.append('output/E2/' + method[0] + '/MCC/' + SAMPLES[i] + '.RData')
+        out.append('output/E2/' + method[0] + '/FPR/' + SAMPLES[i] + '.RData')
+        out.append('output/E2/' + method[0] + '/FNR/' + SAMPLES[i] + '.RData')
+        out.append('output/E2/' + method[0] + '/PR/' + SAMPLES[i] + '.RData')
     return(out)
 
 def aggregate_method_e5(method):
     out = []
     for i in range(len(SAMPLES)):
         out.append('output/E5/' + method[0] + '/' + SAMPLES[i] + '.RData')
+        out.append('output/E5/' + method[0] + '/ROC/' + SAMPLES[i] + '.RData')
+        out.append('output/E5/' + method[0] + '/AUC/' + SAMPLES[i] + '.RData')
+        out.append('output/E5/' + method[0] + '/BIN/' + SAMPLES[i] + '.RData')
+        out.append('output/E5/' + method[0] + '/F/' + SAMPLES[i] + '.RData')
+        out.append('output/E5/' + method[0] + '/PRC/' + SAMPLES[i] + '.RData')
+        out.append('output/E5/' + method[0] + '/AUCPR/' + SAMPLES[i] + '.RData')
+        out.append('output/E5/' + method[0] + '/MCC/' + SAMPLES[i] + '.RData')
+        out.append('output/E5/' + method[0] + '/FPR/' + SAMPLES[i] + '.RData')
+        out.append('output/E5/' + method[0] + '/FNR/' + SAMPLES[i] + '.RData')
+        out.append('output/E5/' + method[0] + '/PR/' + SAMPLES[i] + '.RData')
     return(out)
 
 def aggregate_method_e10(method):
     out = []
     for i in range(len(SAMPLES)):
         out.append('output/E10/' + method[0] + '/' + SAMPLES[i] + '.RData')
+        out.append('output/E10/' + method[0] + '/ROC/' + SAMPLES[i] + '.RData')
+        out.append('output/E10/' + method[0] + '/AUC/' + SAMPLES[i] + '.RData')
+        out.append('output/E10/' + method[0] + '/BIN/' + SAMPLES[i] + '.RData')
+        out.append('output/E10/' + method[0] + '/F/' + SAMPLES[i] + '.RData')
+        out.append('output/E10/' + method[0] + '/PRC/' + SAMPLES[i] + '.RData')
+        out.append('output/E10/' + method[0] + '/AUCPR/' + SAMPLES[i] + '.RData')
+        out.append('output/E10/' + method[0] + '/MCC/' + SAMPLES[i] + '.RData')
+        out.append('output/E10/' + method[0] + '/FPR/' + SAMPLES[i] + '.RData')
+        out.append('output/E10/' + method[0] + '/FNR/' + SAMPLES[i] + '.RData')
+        out.append('output/E10/' + method[0] + '/PR/' + SAMPLES[i] + '.RData')
     return(out)
 
+################################
+# AUC-ROC
+################################
 rule syn_plot_auc_e2:
     input:
         aggregate_method_e2
     output:
-        touch('plot/E2/AUC/{method}.png')
+        'plot/E2/AUC/{method}.png'
     resources:
         mem_gb=50
     wildcard_constraints:
@@ -367,11 +465,42 @@ rule syn_plot_auc_e2:
     shell:
         'src/plot_auc.sh {wildcards.method} E2 {output} > {log}'
 
+rule syn_plot_auc_e2_eachcci:
+    input:
+        aggregate_method_e2
+    output:
+        'plot/E2/AUC/{method}_eachCCI.png'
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        method='|'.join([re.escape(x) for x in METHODS])
+    benchmark:
+        'benchmarks/plot_auc_eachcci_E2_{method}.txt'
+    log:
+        'logs/plot_auc_eachcci_E2_{method}.log'
+    shell:
+        'src/plot_auc_eachcci.sh {wildcards.method} E2 {output} > {log}'
+
+rule syn_plot_auc_e2_merge:
+    input:
+        expand('plot/E2/AUC/{method}_eachCCI.png',
+            method=METHODS)
+    output:
+        'plot/E2/AUC/AUC.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_auc_merge_E2.txt'
+    log:
+        'logs/plot_auc_merge_E2.log'
+    shell:
+        'src/plot_auc_merge.sh E2 {output} > {log}'
+
 rule syn_plot_auc_e5:
     input:
         aggregate_method_e5
     output:
-        touch('plot/E5/AUC/{method}.png')
+        'plot/E5/AUC/{method}.png'
     resources:
         mem_gb=50
     wildcard_constraints:
@@ -383,11 +512,42 @@ rule syn_plot_auc_e5:
     shell:
         'src/plot_auc.sh {wildcards.method} E5 {output} > {log}'
 
+rule syn_plot_auc_e5_eachcci:
+    input:
+        aggregate_method_e5
+    output:
+        'plot/E5/AUC/{method}_eachCCI.png'
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        method='|'.join([re.escape(x) for x in METHODS])
+    benchmark:
+        'benchmarks/plot_auc_eachcci_E5_{method}.txt'
+    log:
+        'logs/plot_auc_eachcci_E5_{method}.log'
+    shell:
+        'src/plot_auc_eachcci.sh {wildcards.method} E5 {output} > {log}'
+
+rule syn_plot_auc_e5_merge:
+    input:
+        expand('plot/E5/AUC/{method}_eachCCI.png',
+            method=METHODS)
+    output:
+        'plot/E5/AUC/AUC.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_auc_merge_E5.txt'
+    log:
+        'logs/plot_auc_merge_E5.log'
+    shell:
+        'src/plot_auc_merge.sh E5 {output} > {log}'
+
 rule syn_plot_auc_e10:
     input:
         aggregate_method_e10
     output:
-        touch('plot/E10/AUC/{method}.png')
+        'plot/E10/AUC/{method}.png'
     resources:
         mem_gb=50
     wildcard_constraints:
@@ -399,11 +559,189 @@ rule syn_plot_auc_e10:
     shell:
         'src/plot_auc.sh {wildcards.method} E10 {output} > {log}'
 
+rule syn_plot_auc_e10_eachcci:
+    input:
+        aggregate_method_e10
+    output:
+        'plot/E10/AUC/{method}_eachCCI.png'
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        method='|'.join([re.escape(x) for x in METHODS])
+    benchmark:
+        'benchmarks/plot_auc_eachcci_E10_{method}.txt'
+    log:
+        'logs/plot_auc_eachcci_E10_{method}.log'
+    shell:
+        'src/plot_auc_eachcci.sh {wildcards.method} E10 {output} > {log}'
+
+rule syn_plot_auc_e10_merge:
+    input:
+        expand('plot/E10/AUC/{method}_eachCCI.png',
+            method=METHODS)
+    output:
+        'plot/E10/AUC/AUC.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_auc_merge_E10.txt'
+    log:
+        'logs/plot_auc_merge_E10.log'
+    shell:
+        'src/plot_auc_merge.sh E10 {output} > {log}'
+
+################################
+# AUC-PR
+################################
+rule syn_plot_aucpr_e2:
+    input:
+        aggregate_method_e2
+    output:
+        'plot/E2/AUCPR/{method}.png'
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        method='|'.join([re.escape(x) for x in METHODS])
+    benchmark:
+        'benchmarks/plot_aucpr_E2_{method}.txt'
+    log:
+        'logs/plot_aucpr_E2_{method}.log'
+    shell:
+        'src/plot_aucpr.sh {wildcards.method} E2 {output} > {log}'
+
+rule syn_plot_aucpr_e2_eachcci:
+    input:
+        aggregate_method_e2
+    output:
+        'plot/E2/AUCPR/{method}_eachCCI.png'
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        method='|'.join([re.escape(x) for x in METHODS])
+    benchmark:
+        'benchmarks/plot_aucpr_eachcci_E2_{method}.txt'
+    log:
+        'logs/plot_aucpr_eachcci_E2_{method}.log'
+    shell:
+        'src/plot_aucpr_eachcci.sh {wildcards.method} E2 {output} > {log}'
+
+rule syn_plot_aucpr_e2_merge:
+    input:
+        expand('plot/E2/AUCPR/{method}_eachCCI.png',
+            method=METHODS)
+    output:
+        'plot/E2/AUCPR/AUCPR.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_aucpr_merge_E2.txt'
+    log:
+        'logs/plot_aucpr_merge_E2.log'
+    shell:
+        'src/plot_aucpr_merge.sh E2 {output} > {log}'
+
+rule syn_plot_aucpr_e5:
+    input:
+        aggregate_method_e5
+    output:
+        'plot/E5/AUCPR/{method}.png'
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        method='|'.join([re.escape(x) for x in METHODS])
+    benchmark:
+        'benchmarks/plot_aucpr_E5_{method}.txt'
+    log:
+        'logs/plot_aucpr_E5_{method}.log'
+    shell:
+        'src/plot_aucpr.sh {wildcards.method} E5 {output} > {log}'
+
+rule syn_plot_aucpr_e5_eachcci:
+    input:
+        aggregate_method_e5
+    output:
+        'plot/E5/AUCPR/{method}_eachCCI.png'
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        method='|'.join([re.escape(x) for x in METHODS])
+    benchmark:
+        'benchmarks/plot_aucpr_eachcci_E5_{method}.txt'
+    log:
+        'logs/plot_aucpr_eachcci_E5_{method}.log'
+    shell:
+        'src/plot_aucpr_eachcci.sh {wildcards.method} E5 {output} > {log}'
+
+rule syn_plot_aucpr_e5_merge:
+    input:
+        expand('plot/E5/AUCPR/{method}_eachCCI.png',
+            method=METHODS)
+    output:
+        'plot/E5/AUCPR/AUCPR.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_aucpr_merge_E5.txt'
+    log:
+        'logs/plot_aucpr_merge_E5.log'
+    shell:
+        'src/plot_aucpr_merge.sh E5 {output} > {log}'
+
+rule syn_plot_aucpr_e10:
+    input:
+        aggregate_method_e10
+    output:
+        'plot/E10/AUCPR/{method}.png'
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        method='|'.join([re.escape(x) for x in METHODS])
+    benchmark:
+        'benchmarks/plot_aucpr_E10_{method}.txt'
+    log:
+        'logs/plot_aucpr_E10_{method}.log'
+    shell:
+        'src/plot_aucpr.sh {wildcards.method} E10 {output} > {log}'
+
+rule syn_plot_aucpr_e10_eachcci:
+    input:
+        aggregate_method_e10
+    output:
+        'plot/E10/AUCPR/{method}_eachCCI.png'
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        method='|'.join([re.escape(x) for x in METHODS])
+    benchmark:
+        'benchmarks/plot_aucpr_eachcci_E10_{method}.txt'
+    log:
+        'logs/plot_aucpr_eachcci_E10_{method}.log'
+    shell:
+        'src/plot_aucpr_eachcci.sh {wildcards.method} E10 {output} > {log}'
+
+rule syn_plot_aucpr_e10_merge:
+    input:
+        expand('plot/E10/AUCPR/{method}_eachCCI.png',
+            method=METHODS)
+    output:
+        'plot/E10/AUCPR/AUCPR.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_aucpr_merge_E10.txt'
+    log:
+        'logs/plot_aucpr_merge_E10.log'
+    shell:
+        'src/plot_aucpr_merge.sh E10 {output} > {log}'
+
+################################
+# F-measure
+################################
 rule syn_plot_f_e2:
     input:
         aggregate_method_e2
     output:
-        touch('plot/E2/F/{binmethod}.png')
+        'plot/E2/F/{binmethod}.png'
     resources:
         mem_gb=50
     benchmark:
@@ -413,11 +751,40 @@ rule syn_plot_f_e2:
     shell:
         'src/plot_f.sh {wildcards.binmethod} E2 {output} > {log}'
 
+rule syn_plot_f_e2_eachcci:
+    input:
+        aggregate_method_e2
+    output:
+        'plot/E2/F/{binmethod}_eachCCI.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_f_eachcci_E2_{binmethod}.txt'
+    log:
+        'logs/plot_f_eachcci_E2_{binmethod}.log'
+    shell:
+        'src/plot_f_eachcci.sh {wildcards.binmethod} E2 {output} > {log}'
+
+rule syn_plot_f_e2_merge:
+    input:
+        expand('plot/E2/F/{binmethod}_eachCCI.png',
+            binmethod=BINMETHODS)
+    output:
+        'plot/E2/F/F.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_f_merge_E2.txt'
+    log:
+        'logs/plot_f_merge_E2.log'
+    shell:
+        'src/plot_f_merge.sh E2 {output} > {log}'
+
 rule syn_plot_f_e5:
     input:
         aggregate_method_e5
     output:
-        touch('plot/E5/F/{binmethod}.png')
+        'plot/E5/F/{binmethod}.png'
     resources:
         mem_gb=50
     benchmark:
@@ -427,11 +794,40 @@ rule syn_plot_f_e5:
     shell:
         'src/plot_f.sh {wildcards.binmethod} E5 {output} > {log}'
 
+rule syn_plot_f_e5_eachcci:
+    input:
+        aggregate_method_e5
+    output:
+        'plot/E5/F/{binmethod}_eachCCI.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_f_eachcci_E5_{binmethod}.txt'
+    log:
+        'logs/plot_f_eachcci_E5_{binmethod}.log'
+    shell:
+        'src/plot_f_eachcci.sh {wildcards.binmethod} E5 {output} > {log}'
+
+rule syn_plot_f_e5_merge:
+    input:
+        expand('plot/E5/F/{binmethod}_eachCCI.png',
+            binmethod=BINMETHODS)
+    output:
+        'plot/E5/F/F.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_f_merge_E5.txt'
+    log:
+        'logs/plot_f_merge_E5.log'
+    shell:
+        'src/plot_f_merge.sh E5 {output} > {log}'
+
 rule syn_plot_f_e10:
     input:
         aggregate_method_e10
     output:
-        touch('plot/E10/F/{binmethod}.png')
+        'plot/E10/F/{binmethod}.png'
     resources:
         mem_gb=50
     benchmark:
@@ -441,11 +837,604 @@ rule syn_plot_f_e10:
     shell:
         'src/plot_f.sh {wildcards.binmethod} E10 {output} > {log}'
 
+rule syn_plot_f_e10_eachcci:
+    input:
+        aggregate_method_e10
+    output:
+        'plot/E10/F/{binmethod}_eachCCI.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_f_eachcci_E10_{binmethod}.txt'
+    log:
+        'logs/plot_f_eachcci_E10_{binmethod}.log'
+    shell:
+        'src/plot_f_eachcci.sh {wildcards.binmethod} E10 {output} > {log}'
+
+rule syn_plot_f_e10_merge:
+    input:
+        expand('plot/E10/F/{binmethod}_eachCCI.png',
+            binmethod=BINMETHODS)
+    output:
+        'plot/E10/F/F.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_f_merge_E10.txt'
+    log:
+        'logs/plot_f_merge_E10.log'
+    shell:
+        'src/plot_f_merge.sh E10 {output} > {log}'
+
+################################
+# MCC
+################################
+rule syn_plot_mcc_e2:
+    input:
+        aggregate_method_e2
+    output:
+        'plot/E2/MCC/{binmethod}.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_mcc_E2_{binmethod}.txt'
+    log:
+        'logs/plot_mcc_E2_{binmethod}.log'
+    shell:
+        'src/plot_mcc.sh {wildcards.binmethod} E2 {output} > {log}'
+
+rule syn_plot_mcc_e2_eachcci:
+    input:
+        aggregate_method_e2
+    output:
+        'plot/E2/MCC/{binmethod}_eachCCI.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_mcc_eachcci_E2_{binmethod}.txt'
+    log:
+        'logs/plot_mcc_eachcci_E2_{binmethod}.log'
+    shell:
+        'src/plot_mcc_eachcci.sh {wildcards.binmethod} E2 {output} > {log}'
+
+rule syn_plot_mcc_e2_merge:
+    input:
+        expand('plot/E2/MCC/{binmethod}_eachCCI.png',
+            binmethod=BINMETHODS)
+    output:
+        'plot/E2/MCC/MCC.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_mcc_merge_E2.txt'
+    log:
+        'logs/plot_mcc_merge_E2.log'
+    shell:
+        'src/plot_mcc_merge.sh E2 {output} > {log}'
+
+rule syn_plot_mcc_e5:
+    input:
+        aggregate_method_e5
+    output:
+        'plot/E5/MCC/{binmethod}.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_mcc_E5_{binmethod}.txt'
+    log:
+        'logs/plot_mcc_E5_{binmethod}.log'
+    shell:
+        'src/plot_mcc.sh {wildcards.binmethod} E5 {output} > {log}'
+
+rule syn_plot_mcc_e5_eachcci:
+    input:
+        aggregate_method_e5
+    output:
+        'plot/E5/MCC/{binmethod}_eachCCI.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_mcc_eachcci_E5_{binmethod}.txt'
+    log:
+        'logs/plot_mcc_eachcci_E5_{binmethod}.log'
+    shell:
+        'src/plot_mcc_eachcci.sh {wildcards.binmethod} E5 {output} > {log}'
+
+rule syn_plot_mcc_e5_merge:
+    input:
+        expand('plot/E5/MCC/{binmethod}_eachCCI.png',
+            binmethod=BINMETHODS)
+    output:
+        'plot/E5/MCC/MCC.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_mcc_merge_E5.txt'
+    log:
+        'logs/plot_mcc_merge_E5.log'
+    shell:
+        'src/plot_mcc_merge.sh E5 {output} > {log}'
+
+rule syn_plot_mcc_e10:
+    input:
+        aggregate_method_e10
+    output:
+        'plot/E10/MCC/{binmethod}.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_mcc_E10_{binmethod}.txt'
+    log:
+        'logs/plot_mcc_E10_{binmethod}.log'
+    shell:
+        'src/plot_mcc.sh {wildcards.binmethod} E10 {output} > {log}'
+
+rule syn_plot_mcc_e10_eachcci:
+    input:
+        aggregate_method_e10
+    output:
+        'plot/E10/MCC/{binmethod}_eachCCI.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_mcc_eachcci_E10_{binmethod}.txt'
+    log:
+        'logs/plot_mcc_eachcci_E10_{binmethod}.log'
+    shell:
+        'src/plot_mcc_eachcci.sh {wildcards.binmethod} E10 {output} > {log}'
+
+rule syn_plot_mcc_e10_merge:
+    input:
+        expand('plot/E10/MCC/{binmethod}_eachCCI.png',
+            binmethod=BINMETHODS)
+    output:
+        'plot/E10/MCC/MCC.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_mcc_merge_E10.txt'
+    log:
+        'logs/plot_mcc_merge_E10.log'
+    shell:
+        'src/plot_mcc_merge.sh E10 {output} > {log}'
+
+################################
+# FPR
+################################
+rule syn_plot_fpr_e2:
+    input:
+        aggregate_method_e2
+    output:
+        'plot/E2/FPR/{binmethod}.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_fpr_E2_{binmethod}.txt'
+    log:
+        'logs/plot_fpr_E2_{binmethod}.log'
+    shell:
+        'src/plot_fpr.sh {wildcards.binmethod} E2 {output} > {log}'
+
+rule syn_plot_fpr_e2_eachcci:
+    input:
+        aggregate_method_e2
+    output:
+        'plot/E2/FPR/{binmethod}_eachCCI.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_fpr_eachcci_E2_{binmethod}.txt'
+    log:
+        'logs/plot_fpr_eachcci_E2_{binmethod}.log'
+    shell:
+        'src/plot_fpr_eachcci.sh {wildcards.binmethod} E2 {output} > {log}'
+
+rule syn_plot_fpr_e2_merge:
+    input:
+        expand('plot/E2/FPR/{binmethod}_eachCCI.png',
+            binmethod=BINMETHODS)
+    output:
+        'plot/E2/FPR/FPR.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_fpr_merge_E2.txt'
+    log:
+        'logs/plot_fpr_merge_E2.log'
+    shell:
+        'src/plot_fpr_merge.sh E2 {output} > {log}'
+
+rule syn_plot_fpr_e5:
+    input:
+        aggregate_method_e5
+    output:
+        'plot/E5/FPR/{binmethod}.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_fpr_E5_{binmethod}.txt'
+    log:
+        'logs/plot_fpr_E5_{binmethod}.log'
+    shell:
+        'src/plot_fpr.sh {wildcards.binmethod} E5 {output} > {log}'
+
+rule syn_plot_fpr_e5_eachcci:
+    input:
+        aggregate_method_e5
+    output:
+        'plot/E5/FPR/{binmethod}_eachCCI.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_fpr_eachcci_E5_{binmethod}.txt'
+    log:
+        'logs/plot_fpr_eachcci_E5_{binmethod}.log'
+    shell:
+        'src/plot_fpr_eachcci.sh {wildcards.binmethod} E5 {output} > {log}'
+
+rule syn_plot_fpr_e5_merge:
+    input:
+        expand('plot/E5/FPR/{binmethod}_eachCCI.png',
+            binmethod=BINMETHODS)
+    output:
+        'plot/E5/FPR/FPR.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_fpr_merge_E5.txt'
+    log:
+        'logs/plot_fpr_merge_E5.log'
+    shell:
+        'src/plot_fpr_merge.sh E5 {output} > {log}'
+
+rule syn_plot_fpr_e10:
+    input:
+        aggregate_method_e10
+    output:
+        'plot/E10/FPR/{binmethod}.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_fpr_E10_{binmethod}.txt'
+    log:
+        'logs/plot_fpr_E10_{binmethod}.log'
+    shell:
+        'src/plot_fpr.sh {wildcards.binmethod} E10 {output} > {log}'
+
+rule syn_plot_fpr_e10_eachcci:
+    input:
+        aggregate_method_e10
+    output:
+        'plot/E10/FPR/{binmethod}_eachCCI.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_fpr_eachcci_E10_{binmethod}.txt'
+    log:
+        'logs/plot_fpr_eachcci_E10_{binmethod}.log'
+    shell:
+        'src/plot_fpr_eachcci.sh {wildcards.binmethod} E10 {output} > {log}'
+
+rule syn_plot_fpr_e10_merge:
+    input:
+        expand('plot/E10/FPR/{binmethod}_eachCCI.png',
+            binmethod=BINMETHODS)
+    output:
+        'plot/E10/FPR/FPR.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_fpr_merge_E10.txt'
+    log:
+        'logs/plot_fpr_merge_E10.log'
+    shell:
+        'src/plot_fpr_merge.sh E10 {output} > {log}'
+
+################################
+# FNR
+################################
+rule syn_plot_fnr_e2:
+    input:
+        aggregate_method_e2
+    output:
+        'plot/E2/FNR/{binmethod}.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_fnr_E2_{binmethod}.txt'
+    log:
+        'logs/plot_fnr_E2_{binmethod}.log'
+    shell:
+        'src/plot_fnr.sh {wildcards.binmethod} E2 {output} > {log}'
+
+rule syn_plot_fnr_e2_eachcci:
+    input:
+        aggregate_method_e2
+    output:
+        'plot/E2/FNR/{binmethod}_eachCCI.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_fnr_eachcci_E2_{binmethod}.txt'
+    log:
+        'logs/plot_fnr_eachcci_E2_{binmethod}.log'
+    shell:
+        'src/plot_fnr_eachcci.sh {wildcards.binmethod} E2 {output} > {log}'
+
+rule syn_plot_fnr_e2_merge:
+    input:
+        expand('plot/E2/FNR/{binmethod}_eachCCI.png',
+            binmethod=BINMETHODS)
+    output:
+        'plot/E2/FNR/FNR.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_fnr_merge_E2.txt'
+    log:
+        'logs/plot_fnr_merge_E2.log'
+    shell:
+        'src/plot_fnr_merge.sh E2 {output} > {log}'
+
+rule syn_plot_fnr_e5:
+    input:
+        aggregate_method_e5
+    output:
+        'plot/E5/FNR/{binmethod}.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_fnr_E5_{binmethod}.txt'
+    log:
+        'logs/plot_fnr_E5_{binmethod}.log'
+    shell:
+        'src/plot_fnr.sh {wildcards.binmethod} E5 {output} > {log}'
+
+rule syn_plot_fnr_e5_eachcci:
+    input:
+        aggregate_method_e5
+    output:
+        'plot/E5/FNR/{binmethod}_eachCCI.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_fnr_eachcci_E5_{binmethod}.txt'
+    log:
+        'logs/plot_fnr_eachcci_E5_{binmethod}.log'
+    shell:
+        'src/plot_fnr_eachcci.sh {wildcards.binmethod} E5 {output} > {log}'
+
+rule syn_plot_fnr_e5_merge:
+    input:
+        expand('plot/E5/FNR/{binmethod}_eachCCI.png',
+            binmethod=BINMETHODS)
+    output:
+        'plot/E5/FNR/FNR.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_fnr_merge_E5.txt'
+    log:
+        'logs/plot_fnr_merge_E5.log'
+    shell:
+        'src/plot_fnr_merge.sh E5 {output} > {log}'
+
+rule syn_plot_fnr_e10:
+    input:
+        aggregate_method_e10
+    output:
+        'plot/E10/FNR/{binmethod}.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_fnr_E10_{binmethod}.txt'
+    log:
+        'logs/plot_fnr_E10_{binmethod}.log'
+    shell:
+        'src/plot_fnr.sh {wildcards.binmethod} E10 {output} > {log}'
+
+rule syn_plot_fnr_e10_eachcci:
+    input:
+        aggregate_method_e10
+    output:
+        'plot/E10/FNR/{binmethod}_eachCCI.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_fnr_eachcci_E10_{binmethod}.txt'
+    log:
+        'logs/plot_fnr_eachcci_E10_{binmethod}.log'
+    shell:
+        'src/plot_fnr_eachcci.sh {wildcards.binmethod} E10 {output} > {log}'
+
+rule syn_plot_fnr_e10_merge:
+    input:
+        expand('plot/E10/FNR/{binmethod}_eachCCI.png',
+            binmethod=BINMETHODS)
+    output:
+        'plot/E10/FNR/FNR.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_fnr_merge_E10.txt'
+    log:
+        'logs/plot_fnr_merge_E10.log'
+    shell:
+        'src/plot_fnr_merge.sh E10 {output} > {log}'
+
+################################
+# PR
+################################
+rule syn_plot_pr_e2:
+    input:
+        aggregate_method_e2
+    output:
+        'plot/E2/PR/{binmethod}.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_pr_E2_{binmethod}.txt'
+    log:
+        'logs/plot_pr_E2_{binmethod}.log'
+    shell:
+        'src/plot_pr.sh {wildcards.binmethod} E2 {output} > {log}'
+
+rule syn_plot_pr_e2_eachcci:
+    input:
+        aggregate_method_e2
+    output:
+        'plot/E2/PR/{binmethod}_eachCCI.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_pr_eachcci_E2_{binmethod}.txt'
+    log:
+        'logs/plot_pr_eachcci_E2_{binmethod}.log'
+    shell:
+        'src/plot_pr_eachcci.sh {wildcards.binmethod} E2 {output} > {log}'
+
+rule syn_plot_pr_e2_merge:
+    input:
+        expand('plot/E2/PR/{binmethod}_eachCCI.png',
+            binmethod=BINMETHODS)
+    output:
+        'plot/E2/PR/PR.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_pr_merge_E2.txt'
+    log:
+        'logs/plot_pr_merge_E2.log'
+    shell:
+        'src/plot_pr_merge.sh E2 {output} > {log}'
+
+rule syn_plot_pr_e5:
+    input:
+        aggregate_method_e5
+    output:
+        'plot/E5/PR/{binmethod}.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_pr_E5_{binmethod}.txt'
+    log:
+        'logs/plot_pr_E5_{binmethod}.log'
+    shell:
+        'src/plot_pr.sh {wildcards.binmethod} E5 {output} > {log}'
+
+rule syn_plot_pr_e5_eachcci:
+    input:
+        aggregate_method_e5
+    output:
+        'plot/E5/PR/{binmethod}_eachCCI.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_pr_eachcci_E5_{binmethod}.txt'
+    log:
+        'logs/plot_pr_eachcci_E5_{binmethod}.log'
+    shell:
+        'src/plot_pr_eachcci.sh {wildcards.binmethod} E5 {output} > {log}'
+
+rule syn_plot_pr_e5_merge:
+    input:
+        expand('plot/E5/PR/{binmethod}_eachCCI.png',
+            binmethod=BINMETHODS)
+    output:
+        'plot/E5/PR/PR.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_pr_merge_E5.txt'
+    log:
+        'logs/plot_pr_merge_E5.log'
+    shell:
+        'src/plot_pr_merge.sh E5 {output} > {log}'
+
+rule syn_plot_pr_e10:
+    input:
+        aggregate_method_e10
+    output:
+        'plot/E10/PR/{binmethod}.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_pr_E10_{binmethod}.txt'
+    log:
+        'logs/plot_pr_E10_{binmethod}.log'
+    shell:
+        'src/plot_pr.sh {wildcards.binmethod} E10 {output} > {log}'
+
+rule syn_plot_pr_e10_eachcci:
+    input:
+        aggregate_method_e10
+    output:
+        'plot/E10/PR/{binmethod}_eachCCI.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_pr_eachcci_E10_{binmethod}.txt'
+    log:
+        'logs/plot_pr_eachcci_E10_{binmethod}.log'
+    shell:
+        'src/plot_pr_eachcci.sh {wildcards.binmethod} E10 {output} > {log}'
+
+rule syn_plot_pr_e10_merge:
+    input:
+        expand('plot/E10/PR/{binmethod}_eachCCI.png',
+            binmethod=BINMETHODS)
+    output:
+        'plot/E10/PR/PR.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_pr_merge_E10.txt'
+    log:
+        'logs/plot_pr_merge_E10.log'
+    shell:
+        'src/plot_pr_merge.sh E10 {output} > {log}'
+
+################################
+# TR
+################################
+rule syn_plot_tr:
+    input:
+        expand("data/groundtruth/{sample}.RData",
+            sample=SAMPLES)
+    output:
+        'plot/TR.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_tr.txt'
+    log:
+        'logs/plot_tr.log'
+    shell:
+        'src/plot_tr.sh {output} > {log}'
+
+rule syn_plot_tr_eachcchi:
+    input:
+        expand("data/groundtruth/{sample}.RData",
+            sample=SAMPLES)
+    output:
+        'plot/TR_eachCCI.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_tr_eachcci.txt'
+    log:
+        'logs/plot_tr_eachcci.log'
+    shell:
+        'src/plot_tr_eachcci.sh {output} > {log}'
+
+################################
+# Time
+################################
 rule syn_plot_time_e2:
     input:
         aggregate_method_e2
     output:
-        touch('plot/E2/Time/{method}.png')
+        'plot/E2/Time/{method}.png'
     resources:
         mem_gb=50
     wildcard_constraints:
@@ -457,11 +1446,26 @@ rule syn_plot_time_e2:
     shell:
         'src/plot_time.sh {wildcards.method} E2 {output} > {log}'
 
+rule syn_plot_time_e2_merge:
+    input:
+        expand('plot/E2/Time/{method}.png',
+            method=METHODS)
+    output:
+        'plot/E2/Time/Time.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_time_merge_E2.txt'
+    log:
+        'logs/plot_time_merge_E2.log'
+    shell:
+        'src/plot_time_merge.sh E2 {output} > {log}'
+
 rule syn_plot_time_e5:
     input:
         aggregate_method_e5
     output:
-        touch('plot/E5/Time/{method}.png')
+        'plot/E5/Time/{method}.png'
     resources:
         mem_gb=50
     wildcard_constraints:
@@ -473,11 +1477,26 @@ rule syn_plot_time_e5:
     shell:
         'src/plot_time.sh {wildcards.method} E5 {output} > {log}'
 
+rule syn_plot_time_e5_merge:
+    input:
+        expand('plot/E5/Time/{method}.png',
+            method=METHODS)
+    output:
+        'plot/E5/Time/Time.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_time_merge_E5.txt'
+    log:
+        'logs/plot_time_merge_E5.log'
+    shell:
+        'src/plot_time_merge.sh E5 {output} > {log}'
+
 rule syn_plot_time_e10:
     input:
         aggregate_method_e10
     output:
-        touch('plot/E10/Time/{method}.png')
+        'plot/E10/Time/{method}.png'
     resources:
         mem_gb=50
     wildcard_constraints:
@@ -489,11 +1508,29 @@ rule syn_plot_time_e10:
     shell:
         'src/plot_time.sh {wildcards.method} E10 {output} > {log}'
 
+rule syn_plot_time_e10_merge:
+    input:
+        expand('plot/E10/Time/{method}.png',
+            method=METHODS)
+    output:
+        'plot/E10/Time/Time.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_time_merge_E10.txt'
+    log:
+        'logs/plot_time_merge_E10.log'
+    shell:
+        'src/plot_time_merge.sh E10 {output} > {log}'
+
+################################
+# Memory
+################################
 rule syn_plot_memory_e2:
     input:
         aggregate_method_e2
     output:
-        touch('plot/E2/Memory/{method}.png')
+        'plot/E2/Memory/{method}.png'
     resources:
         mem_gb=50
     wildcard_constraints:
@@ -505,11 +1542,26 @@ rule syn_plot_memory_e2:
     shell:
         'src/plot_memory.sh {wildcards.method} E2 {output} > {log}'
 
+rule syn_plot_memory_e2_merge:
+    input:
+        expand('plot/E2/Memory/{method}.png',
+            method=METHODS)
+    output:
+        'plot/E2/Memory/Memory.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_memory_merge_E2.txt'
+    log:
+        'logs/plot_memory_merge_E2.log'
+    shell:
+        'src/plot_memory_merge.sh E2 {output} > {log}'
+
 rule syn_plot_memory_e5:
     input:
         aggregate_method_e5
     output:
-        touch('plot/E5/Memory/{method}.png')
+        'plot/E5/Memory/{method}.png'
     resources:
         mem_gb=50
     wildcard_constraints:
@@ -521,11 +1573,26 @@ rule syn_plot_memory_e5:
     shell:
         'src/plot_memory.sh {wildcards.method} E5 {output} > {log}'
 
+rule syn_plot_memory_e5_merge:
+    input:
+        expand('plot/E5/Memory/{method}.png',
+            method=METHODS)
+    output:
+        'plot/E5/Memory/Memory.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_memory_merge_E5.txt'
+    log:
+        'logs/plot_memory_merge_E5.log'
+    shell:
+        'src/plot_memory_merge.sh E5 {output} > {log}'
+
 rule syn_plot_memory_e10:
     input:
         aggregate_method_e10
     output:
-        touch('plot/E10/Memory/{method}.png')
+        'plot/E10/Memory/{method}.png'
     resources:
         mem_gb=50
     wildcard_constraints:
@@ -536,3 +1603,75 @@ rule syn_plot_memory_e10:
         'logs/plot_memory_E10_{method}.log'
     shell:
         'src/plot_memory.sh {wildcards.method} E10 {output} > {log}'
+
+rule syn_plot_memory_e10_merge:
+    input:
+        expand('plot/E10/Memory/{method}.png',
+            method=METHODS)
+    output:
+        'plot/E10/Memory/Memory.png'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/plot_memory_merge_E10.txt'
+    log:
+        'logs/plot_memory_merge_E10.log'
+    shell:
+        'src/plot_memory_merge.sh E10 {output} > {log}'
+
+################################
+# L-R
+################################
+rule syn_plot_lr_e2:
+    input:
+        expand("data/groundtruth/{sample}.RData",
+            sample=SAMPLES),
+        aggregate_method_e2
+    output:
+        'plot/E2/L-R/CHECK_{method}'
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        method='|'.join([re.escape(x) for x in METHODS])
+    benchmark:
+        'benchmarks/plot_L-R_E2_{method}.txt'
+    log:
+        'logs/plot_L-R_E2_{method}.log'
+    shell:
+        'src/plot_LR.sh {wildcards.method} E2 {output} > {log}'
+
+rule syn_plot_lr_e5:
+    input:
+        expand("data/groundtruth/{sample}.RData",
+            sample=SAMPLES),
+        aggregate_method_e5
+    output:
+        'plot/E5/L-R/CHECK_{method}'
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        method='|'.join([re.escape(x) for x in METHODS])
+    benchmark:
+        'benchmarks/plot_L-R_E5_{method}.txt'
+    log:
+        'logs/plot_L-R_E5_{method}.log'
+    shell:
+        'src/plot_LR.sh {wildcards.method} E5 {output} > {log}'
+
+rule syn_plot_lr_e10:
+    input:
+        expand("data/groundtruth/{sample}.RData",
+            sample=SAMPLES),
+        aggregate_method_e10
+    output:
+        'plot/E10/L-R/CHECK_{method}'
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        method='|'.join([re.escape(x) for x in METHODS])
+    benchmark:
+        'benchmarks/plot_L-R_E10_{method}.txt'
+    log:
+        'logs/plot_L-R_E10_{method}.log'
+    shell:
+        'src/plot_LR.sh {wildcards.method} E10 {output} > {log}'

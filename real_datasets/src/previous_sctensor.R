@@ -25,7 +25,9 @@ tnsr <- scTensor:::.cellCellDecomp.Third(
     num.perm=1000,
     decomp=FALSE,
     thr1=log2(5),
-    thr2=25)$cellcelllrpairpattern
+    thr2=25,
+    L1_A=0,
+    L2_A=0)$cellcelllrpairpattern
 
 l <- length(unique(names(celltypes)))
 
@@ -70,6 +72,8 @@ out <- scTensor:::.cellCellDecomp.Third(
     decomp=TRUE,
     thr1=log2(5),
     thr2=25,
+    L1_A=0,
+    L2_A=0,
     verbose=TRUE)
 
 # Save

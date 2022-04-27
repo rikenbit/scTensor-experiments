@@ -54,10 +54,10 @@ LefttoRight <- select(Homo.sapiens,
   keytype="SYMBOL",
   keys=rownames(GSE86146_Female))
 
-GSE86146_Female <- convertToNCBIGeneID(
+GSE86146_Female <- convertRowID(
 	GSE86146_Female,
 	rownames(GSE86146_Female),
-	LefttoRight)
+	LefttoRight)$output
 
 # cell type label
 label.GSE86146 <- read.table("data/Human_Germline_Female/Cluster_Germline.txt", header=TRUE)
@@ -90,8 +90,15 @@ celltypes <- label.GSE86146_Female
 ########################################################
 # 3. Ligand-Receptor pairs used in the original paper
 ########################################################
-db <- c(
-	"CELLPHONEDB", "SINGLECELLSIGNALR", "DLRP", "IUPHAR", "HPMR")
+# db <- c(
+# 	"CELLPHONEDB", "SINGLECELLSIGNALR", "DLRP", "IUPHAR", "HPMR")
+db <- c("DLRP", "IUPHAR", "HPMR")
+
+# 2021/2/8書き換え部分
+setAnnotationHubOption("CACHE", getwd())
+ah <- AnnotationHub()
+LRBase.Hsa.eg.db <- query(ah, c("LRBaseDb", "Homo sapiens", "v002"))[[1]]
+LRBase.Hsa.eg.db <- LRBaseDb(LRBase.Hsa.eg.db)
 
 tmp1 <- select(LRBase.Hsa.eg.db, columns=c("GENEID_L", "GENEID_R", "SOURCEDB"), keytype="GENEID_L", keys=rownames(input))
 tmp2 <- select(LRBase.Hsa.eg.db, columns=c("GENEID_L", "GENEID_R", "SOURCEDB"), keytype="GENEID_R", keys=rownames(input))

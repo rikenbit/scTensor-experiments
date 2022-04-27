@@ -1,7 +1,7 @@
 source("src/Functions.R")
 
 # Parameter
-infile <- commandArgs(trailingOnly=TRUE)[1] 
+infile <- commandArgs(trailingOnly=TRUE)[1]
 outfile <- commandArgs(trailingOnly=TRUE)[2]
 
 # Data Loading
@@ -25,7 +25,11 @@ tnsr <- scTensor:::.cellCellDecomp.Third(
     num.perm=1000,
     decomp=FALSE,
     thr1=log2(5),
-    thr2=25)$cellcelllrpairpattern
+    thr2=25,
+    thr3=0.95,
+    L1_A=0,
+    L2_A=0,
+    verbose=TRUE)$cellcelllrpairpattern
 
 l <- length(unique(names(celltypes)))
 
@@ -70,6 +74,9 @@ out <- scTensor:::.cellCellDecomp.Third(
     decomp=TRUE,
     thr1=log2(5),
     thr2=25,
+    thr3=0.95,
+    L1_A=0,
+    L2_A=0,
     verbose=TRUE)
 
 # Save

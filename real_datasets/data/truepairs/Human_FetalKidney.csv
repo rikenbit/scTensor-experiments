@@ -1,4 +1,6 @@
 Ligand	Receptor	Source	Target
+BMP7	ACVR1	Podocyte	Cap mesenchyme
+BMP7	ACVR1	Podocyte	Stroma
 EFNB2	EPHB3	Podocyte	Cap mesenchyme
 EFNB2	EPHB3	Podocyte	Nephron progenitor
 EFNB2	EPHB3	Podocyte	Loop of Henle / Distal
@@ -11,4 +13,56 @@ EFNB2	EPHB3	Endothelial	Cap mesenchyme
 EFNB2	EPHB3	Endothelial	Nephron progenitor
 EFNB2	EPHB3	Endothelial	Loop of Henle / Distal
 EFNB2	EPHB3	Endothelial	Connecting tubule / Distal
+ERBB2	NRG1	Connecting tubule / Distal	Podocyte
+ERBB2	NRG1	Connecting tubule / Distal	Collecting duct
+ERBB2	NRG1	Connecting tubule / Distal	Loop of Henle / Distal
+ERBB4	BTC	Nephron progenitor	Podocyte
+ERBB4	BTC	Nephron progenitor	Proximal tubule
+ERBB4	BTC	Nephron progenitor	Collecting duct
+FLT1	VEGFC	Endothelial	Podocyte
+FLT1	VEGFC	Endothelial	Connecting tubule / Distal
+FLT1	VEGFC	Endothelial	Endothelial
+IL6ST	CTF1	Endothelial	Nephron progenitor
+IL6ST	CTF1	Endothelial	Podocyte
+IL6ST	CTF1	Endothelial	Loop of Henle / Distal
+IL6ST	CTF1	Endothelial	Connecting tubule / Distal
 JAG1	NOTCH4	Proximal tubule	Endothelial
+JAG1	NOTCH2	Proximal tubule	Cap mesenchyme
+JAG1	NOTCH2	Proximal tubule	Stroma
+JAG1	NOTCH2	Proximal tubule	Podocyte
+KDR	VEGFC	Endothelial	Podocyte
+KDR	VEGFC	Endothelial	Connecting tubule / Distal
+KDR	VEGFC	Endothelial	Endothelial
+LIFR	CTF1	Endothelial	Nephron progenitor
+LIFR	CTF1	Endothelial	Podocyte
+LIFR	CTF1	Endothelial	Loop of Henle / Distal
+LIFR	CTF1	Endothelial	Connecting tubule / Distal
+MDK	PTPRB	Cap mesenchyme	Endothelial
+MDK	PTPRB	Stroma	Endothelial
+NOTCH4	JAG1	Endothelial	Cap mesenchyme
+NOTCH4	JAG1	Endothelial	Unspecified/RBC
+NOTCH4	JAG1	Endothelial	Nephron progenitor
+NOTCH4	JAG1	Endothelial	Proximal tubule
+NOTCH4	JAG1	Endothelial	Connecting tubule / Distal
+NTRK2	BDNF	Cap mesenchyme	Cap mesenchyme
+NTRK2	BDNF	Cap mesenchyme	Stroma
+NTRK2	BDNF	Cap mesenchyme	Podocyte
+NTRK2	BDNF	Cap mesenchyme	Proximal tubule
+NTRK2	BDNF	Cap mesenchyme	Collecting duct
+PTN	PTPRB	Stroma	Endothelial
+TGFBR2	TGFB3	Endothelial	Cap mesenchyme
+TGFBR2	TGFB3	Endothelial	Stroma
+TGFBR2	TGFB3	Endothelial	Collecting duct
+TGFBR2	TGFB2	Endothelial	Cap mesenchyme
+TGFBR2	TGFB2	Endothelial	Stroma
+TGFBR3	TGFB3	Podocyte	Cap mesenchyme
+TGFBR3	TGFB3	Podocyte	Stroma
+TGFBR3	TGFB3	Podocyte	Collecting duct
+TGFBR3	TGFB3	Podocyte	Endothelial
+TGFBR3	TGFB2	Podocyte	Cap mesenchyme
+TGFBR3	TGFB2	Podocyte	Stroma
+TNFSF10	TNFRSF10B	Proximal tubule	Nephron progenitor
+TNFSF10	TNFRSF10B	Proximal tubule	Podocyte
+TNFSF10	TNFRSF10B	Proximal tubule	Proximal tubule
+TNFSF10	TNFRSF10B	Proximal tubule	Loop of Henle / Distal
+TNFSF10	TNFRSF10B	Proximal tubule	Connecting tubule / Distal

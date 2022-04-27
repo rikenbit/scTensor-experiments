@@ -42,12 +42,12 @@ LefttoRight <- select(Homo.sapiens,
   keys=unique(c(rownames(GSE125416_Control),
   	rownames(GSE125416_Nicotine))))
 
-GSE125416_Control <- convertToNCBIGeneID(GSE125416_Control,
+GSE125416_Control <- convertRowID(GSE125416_Control,
 	rownames(GSE125416_Control),
-	LefttoRight)
-GSE125416_Nicotine <- convertToNCBIGeneID(GSE125416_Nicotine,
+	LefttoRight)$output
+GSE125416_Nicotine <- convertRowID(GSE125416_Nicotine,
 	rownames(GSE125416_Nicotine),
-	LefttoRight)
+	LefttoRight)$output
 
 # HVG
 hvg.stats <- HVG(cbind(GSE125416_Control, GSE125416_Nicotine))
@@ -97,8 +97,15 @@ celltypes[which(celltypes == "Stromal")] <- ggdefault_cols(8)[8]
 ########################################################
 # 3. Ligand-Receptor pairs used in the original paper
 ########################################################
-db <- c(
-	"CELLPHONEDB", "SINGLECELLSIGNALR", "DLRP", "IUPHAR", "HPMR")
+# db <- c(
+# 	"CELLPHONEDB", "SINGLECELLSIGNALR", "DLRP", "IUPHAR", "HPMR")
+db <- c("DLRP", "IUPHAR", "HPMR")
+
+# 2021/2/8書き換え部分
+setAnnotationHubOption("CACHE", getwd())
+ah <- AnnotationHub()
+LRBase.Hsa.eg.db <- query(ah, c("LRBaseDb", "Homo sapiens", "v002"))[[1]]
+LRBase.Hsa.eg.db <- LRBaseDb(LRBase.Hsa.eg.db)
 
 tmp1 <- select(LRBase.Hsa.eg.db, columns=c("GENEID_L", "GENEID_R", "SOURCEDB"), keytype="GENEID_L", keys=rownames(input))
 tmp2 <- select(LRBase.Hsa.eg.db, columns=c("GENEID_L", "GENEID_R", "SOURCEDB"), keytype="GENEID_R", keys=rownames(input))

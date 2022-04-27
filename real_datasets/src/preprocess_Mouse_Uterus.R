@@ -5,7 +5,8 @@ source("src/Functions.R")
 ########################################################
 
 # Data loading
-GSE118180 <- read.delim("data/Mouse_Uterus/GSM3320143_WT_Uterus_out_gene_exon_tagged.dge.txt", sep="\t", header=TRUE, stringsAsFactor=FALSE)
+GSE118180 <- read.delim("data/Mouse_Uterus/GSM3320143_WT_Uterus_out_gene_exon_tagged.dge.txt",
+	sep="\t", header=TRUE, stringsAsFactor=FALSE)
 row.names <- GSE118180[,1]
 GSE118180 <- GSE118180[, 2:ncol(GSE118180)]
 rownames(GSE118180) <- row.names
@@ -16,10 +17,10 @@ LefttoRight <- select(Mus.musculus,
   keytype="SYMBOL",
   keys=rownames(GSE118180))
 
-GSE118180 <- convertToNCBIGeneID(
+GSE118180 <- convertRowID(
 	GSE118180,
 	rownames(GSE118180),
-	LefttoRight)
+	LefttoRight)$output
 
 # celltype label
 label.GSE118180 <- read.delim("data/Mouse_Uterus/Uterus_metadata.txt", sep="\t", header=TRUE, stringsAsFactor=FALSE)
@@ -116,9 +117,18 @@ celltypes <- label.GSE118180
 ########################################################
 # 3. Ligand-Receptor pairs used in the original paper
 ########################################################
+# db <- c(
+# 	"ENSEMBL_CELLPHONEDB", "ENSEMBL_SINGLECELLSIGNALR", "ENSEMBL_DLRP", "ENSEMBL_IUPHAR", "ENSEMBL_HPMR",
+# 	"NCBI_CELLPHONEDB", "NCBI_SINGLECELLSIGNALR", "NCBI_DLRP", "NCBI_IUPHAR", "NCBI_HPMR")
 db <- c(
-	"ENSEMBL_CELLPHONEDB", "ENSEMBL_SINGLECELLSIGNALR", "ENSEMBL_DLRP", "ENSEMBL_IUPHAR", "ENSEMBL_HPMR",
-	"NCBI_CELLPHONEDB", "NCBI_SINGLECELLSIGNALR", "NCBI_DLRP", "NCBI_IUPHAR", "NCBI_HPMR")
+	"ENSEMBL_DLRP", "ENSEMBL_IUPHAR", "ENSEMBL_HPMR",
+	"NCBI_DLRP", "NCBI_IUPHAR", "NCBI_HPMR")
+
+# 2021/2/8書き換え部分
+setAnnotationHubOption("CACHE", getwd())
+ah <- AnnotationHub()
+LRBase.Mmu.eg.db <- query(ah, c("LRBaseDb", "Mus musculus", "v002"))[[1]]
+LRBase.Mmu.eg.db <- LRBaseDb(LRBase.Mmu.eg.db)
 
 tmp1 <- select(LRBase.Mmu.eg.db, columns=c("GENEID_L", "GENEID_R", "SOURCEDB"), keytype="GENEID_L", keys=rownames(input))
 tmp2 <- select(LRBase.Mmu.eg.db, columns=c("GENEID_L", "GENEID_R", "SOURCEDB"), keytype="GENEID_R", keys=rownames(input))

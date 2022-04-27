@@ -1,4 +1,6 @@
+library("igraph")
 library("scTensor")
+library("scTGIF")
 library("scales")
 library("RColorBrewer")
 library("ROCR")
@@ -9,18 +11,131 @@ library("Homo.sapiens")
 library("Mus.musculus")
 library("DESeq2")
 library("statmod")
-library("LRBase.Hsa.eg.db")
-library("LRBase.Mmu.eg.db")
+# library("LRBase.Hsa.eg.db")
+# library("LRBase.Mmu.eg.db")
+library("LRBaseDbi")
+library("AnnotationHub")
 library("ggplot2")
 library("viridis")
 library("dbscan")
+library("mclust")
+library("uwot")
+library("Rtsne")
+library("irlba")
 
-# Check 2.0.0
-if(package.version("LRBase.Hsa.eg.db") != "2.0.0"){
-    stop("LRBase.Hsa.eg.db is not 2.0.0!")
+Methods <- c("labelpermutation_tensor",
+"labelpermutation",
+"labelpermutation2_tensor",
+"labelpermutation2",
+"halpern_tensor",
+"halpern",
+"cabelloaguilar_tensor",
+"cabelloaguilar",
+"previous_sctensor",
+"sctensor")
+
+BinMethods <- c(
+"labelpermutation",
+"labelpermutation2",
+"halpern",
+"cabelloaguilar",
+"previous_sctensor",
+"sctensor")
+
+Samples <- c("Human_FetalKidney",
+    "Human_NicotinehESCs_Nicotine",
+    "Human_Germline_Female",
+    "Human_HeadandNeckCancer",
+    "Mouse_Uterus",
+    "Mouse_VisualCortex")
+
+Label.Samples <- c("Human\nFetalKidney",
+    "Human\nNicotinehESCs\nNicotine",
+    "Human\nGermline\nFemale",
+    "Human\nHeadandNeckCancer",
+    "Mouse\nUterus",
+    "Mouse\nVisualCortex")
+
+
+'%ni%' <- Negate('%in%')
+
+options(timeout=1e10)
+LogCPM <- function(input){
+    libsize <- colSums(input)
+    cpm <- median(libsize) * t(t(input) / libsize)
+    log10(cpm + 1)
 }
-if(package.version("LRBase.Mmu.eg.db") != "2.0.0"){
-    stop("LRBase.Mmu.eg.db is not 2.0.0!")
+
+# Check 2.4.1
+if(packageVersion("scTensor") != "2.4.1"){
+stop("scTensor is not 2.4.1!")
+}
+
+# Plot Ground Truth
+mylayout <- function(l){
+    rbind(
+        cbind(2, rev(seq(l))),
+        cbind(1, rev(seq(l))))
+}
+
+bipartiteGraph <- function(cif, x){
+    # Setting
+    eachcif <- cif[[x]]
+    l <- length(eachcif$LPattern)
+    inc <- outer(eachcif$RPattern, eachcif$LPattern )
+    rownames(inc) <- paste0("Receptor-", seq(l))
+    colnames(inc) <- paste0("Ligand-", seq(l))
+    g <- graph_from_incidence_matrix(inc)
+    mynodecolor <- c(rgb(0,0,1,0.5), rgb(1,0,0,0.5))
+    myedgecolor <- c(
+        brewer.pal(8, "Dark2"),
+        brewer.pal(9, "Set1"),
+        brewer.pal(7, "Pastel1")
+        )
+    plot(g, layout = mylayout(l),
+        vertex.color=mynodecolor[V(g)$type + 1],
+        edge.color=myedgecolor[x-1])
+}
+
+mypanel <- function(l){
+    if((1 < l) && (l <= 5)){
+        layout(t(seq(l)))
+    }
+    if((6 < l) && (l <= 10)){
+        layout(rbind(t(1:5), t(6:10)))
+    }
+    if((11 < l) && (l <= 15)){
+        layout(rbind(t(1:5), t(6:10), t(11:15)))
+    }
+    if((16 < l) && (l <= 20)){
+        layout(rbind(t(1:5), t(6:10), t(11:15), t(16:20)))
+    }
+    if((21 < l) && (l <= 25)){
+        layout(rbind(t(1:5), t(6:10), t(11:15), t(16:20), t(21:25)))
+    }
+}
+
+mywidth <- function(l){
+    rep(seq(5), 5)[l] * 300
+}
+
+myheight <- function(l){
+    if((1 < l) && (l <= 5)){
+        height <- 300
+    }
+    if((6 < l) && (l <= 10)){
+        height <- 2 * 300
+    }
+    if((11 < l) && (l <= 15)){
+        height <- 3 * 300
+    }
+    if((16 < l) && (l <= 20)){
+        height <- 4 * 300
+    }
+    if((21 < l) && (l <= 25)){
+        height <- 5 * 300
+    }
+    height
 }
 
 # For ROC, AUC, Binarization, F-measure
@@ -31,7 +146,7 @@ pval.methods <- c(
     "labelpermutation", "labelpermutation2",
     "halpern", "cabelloaguilar")
 
-# Time
+# Memory
 Plot_Memory <- function(){
     df <- aggregateMemory()
     # Plot
@@ -39,7 +154,7 @@ Plot_Memory <- function(){
     gg <- gg + geom_tile(color="white", size=0.1)
     gg <- gg + facet_grid(Samples~., scales="free_y", space="free")
     gg <- gg + scale_fill_viridis(name="GB", limits=c(0, max(df$GB)))
-    gg <- gg + theme(strip.text = element_text(colour="blue3", face=2, size=13))
+    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=9))
     gg <- gg + theme(axis.text.y=element_blank(), axis.title.y=element_blank())
     gg <- gg + theme(axis.text.x=element_text(size = 30, hjust = 0, angle = -60), axis.title.x=element_blank())
     gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
@@ -47,26 +162,11 @@ Plot_Memory <- function(){
     gg <- gg + theme(legend.key.size=unit(3, "cm"))
     gg <- gg + theme(legend.key.width=unit(1, "cm"))
     # Save
-    outfile <- "plot/Memory.png"
-    ggsave(outfile, gg, dpi=120, width=10, height=12)
+    ggsave("plot/Memory.png", gg, dpi=120, width=10, height=12)
 }
 
 aggregateMemory <- function(){
     out <- c()
-    Methods = c("labelpermutation_tensor",
-    "labelpermutation",
-    "labelpermutation2_tensor",
-    "labelpermutation2",
-    "halpern_tensor",
-    "halpern",
-    "cabelloaguilar_tensor",
-    "cabelloaguilar",
-    "previous_sctensor",
-    "sctensor")
-    Samples = c("Human_FetalKidney",
-        "Human_NicotinehESCs_Nicotine",
-        "Human_Germline_Female",
-        "Mouse_Uterus")
     nM <- length(Methods)
     nS <- length(Samples)
     for(i in 1:nM){
@@ -89,7 +189,7 @@ aggregateMemory <- function(){
                 rep(x, length=nS)}))
     df <- data.frame(
         Methods=tmp,
-        Samples=c("FetalKidney", "NicotinehESCs", "Germline", "Uterus"),
+        Samples=Label.Samples,
         GB=out)
     df$Methods <- factor(df$Methods,
         levels=unique(df$Methods))
@@ -106,7 +206,7 @@ Plot_Time <- function(){
     gg <- gg + geom_tile(color="white", size=0.1)
     gg <- gg + facet_grid(Samples~., scales="free_y", space="free")
     gg <- gg + scale_fill_viridis(name="Hour", limits=c(0, max(df$Time)))
-    gg <- gg + theme(strip.text = element_text(colour="blue3", face=2, size=13))
+    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=9))
     gg <- gg + theme(axis.text.y=element_blank(), axis.title.y=element_blank())
     gg <- gg + theme(axis.text.x=element_text(size = 30, hjust = 0, angle = -60), axis.title.x=element_blank())
     gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
@@ -114,26 +214,11 @@ Plot_Time <- function(){
     gg <- gg + theme(legend.key.size=unit(3, "cm"))
     gg <- gg + theme(legend.key.width=unit(1, "cm"))
     # Save
-    outfile <- "plot/Time.png"
-    ggsave(outfile, gg, dpi=120, width=10, height=12)
+    ggsave("plot/Time.png", gg, dpi=120, width=10, height=12)
 }
 
 aggregateTime <- function(){
     out <- c()
-    Methods = c("labelpermutation_tensor",
-    "labelpermutation",
-    "labelpermutation2_tensor",
-    "labelpermutation2",
-    "halpern_tensor",
-    "halpern",
-    "cabelloaguilar_tensor",
-    "cabelloaguilar",
-    "previous_sctensor",
-    "sctensor")
-    Samples = c("Human_FetalKidney",
-        "Human_NicotinehESCs_Nicotine",
-        "Human_Germline_Female",
-        "Mouse_Uterus")
     nM <- length(Methods)
     nS <- length(Samples)
     for(i in 1:nM){
@@ -156,7 +241,7 @@ aggregateTime <- function(){
                 rep(x, length=nS)}))
     df <- data.frame(
         Methods=tmp,
-        Samples=c("FetalKidney", "NicotinehESCs", "Germline", "Uterus"),
+        Samples=Label.Samples,
         Time=out)
     df$Methods <- factor(df$Methods,
         levels=unique(df$Methods))
@@ -169,11 +254,11 @@ aggregateTime <- function(){
 Plot_F <- function(){
     df <- aggregateF()
     # Plot
-    gg <- ggplot(df, aes(x=Methods, y=Samples, fill=F))
+    gg <- ggplot(df, aes(x=BinMethods, y=Samples, fill=F))
     gg <- gg + geom_tile(color="white", size=0.1)
     gg <- gg + facet_grid(Samples~., scales="free_y", space="free")
     gg <- gg + scale_fill_viridis(name="F-measure", limits=c(0, max(df$F)))
-    gg <- gg + theme(strip.text = element_text(colour="blue3", face=2, size=13))
+    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=9))
     gg <- gg + theme(axis.text.y=element_blank(), axis.title.y=element_blank())
     gg <- gg + theme(axis.text.x=element_text(size = 30, hjust = 0, angle = -60), axis.title.x=element_blank())
     gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
@@ -181,32 +266,17 @@ Plot_F <- function(){
     gg <- gg + theme(legend.key.size=unit(3, "cm"))
     gg <- gg + theme(legend.key.width=unit(1, "cm"))
     # Save
-    outfile <- "plot/F.png"
-    ggsave(outfile, gg, dpi=120, width=10, height=12)
+    ggsave("plot/F.png", gg, dpi=120, width=10, height=12)
 }
 
 aggregateF <- function(){
     out <- c()
-    Methods = c("labelpermutation_tensor",
-    "labelpermutation",
-    "labelpermutation2_tensor",
-    "labelpermutation2",
-    "halpern_tensor",
-    "halpern",
-    "cabelloaguilar_tensor",
-    "cabelloaguilar",
-    "previous_sctensor",
-    "sctensor")
-    Samples = c("Human_FetalKidney",
-        "Human_NicotinehESCs_Nicotine",
-        "Human_Germline_Female",
-        "Mouse_Uterus")
-    nM <- length(Methods)
+    nM <- length(BinMethods)
     nS <- length(Samples)
     for(i in 1:nM){
         for(j in 1:nS){
             inputfile <- paste0("output/",
-                Methods[i], "/F/", Samples[j], ".RData")
+                BinMethods[i], "/F/", Samples[j], ".RData")
             load(inputfile)
             f <- unlist(f)
             target <- which(!is.nan(f))
@@ -214,16 +284,245 @@ aggregateF <- function(){
         }
     }
     tmp <- as.vector(
-            sapply(Methods, function(x){
+            sapply(BinMethods, function(x){
                 rep(x, length=nS)}))
     df <- data.frame(
-        Methods=tmp,
-        Samples=c("FetalKidney", "NicotinehESCs", "Germline", "Uterus"),
+        BinMethods=tmp,
+        Samples=Label.Samples,
         F=out)
-    df$Methods <- factor(df$Methods,
-        levels=unique(df$Methods))
+    df$BinMethods <- factor(df$BinMethods,
+        levels=unique(df$BinMethods))
     df$Samples <- factor(df$Samples,
         levels=unique(df$Samples))
+    df
+}
+
+# MCC
+Plot_MCC <- function(){
+    df <- aggregateMCC()
+    # Plot
+    gg <- ggplot(df, aes(x=BinMethods, y=Samples, fill=MCC))
+    gg <- gg + geom_tile(color="white", size=0.1)
+    gg <- gg + facet_grid(Samples~., scales="free_y", space="free")
+    gg <- gg + scale_fill_viridis(name="MCC", limits=c(0, max(df$MCC)))
+    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=9))
+    gg <- gg + theme(axis.text.y=element_blank(), axis.title.y=element_blank())
+    gg <- gg + theme(axis.text.x=element_text(size = 30, hjust = 0, angle = -60), axis.title.x=element_blank())
+    gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
+    gg <- gg + theme(legend.text = element_text(size = 30, hjust = 0))
+    gg <- gg + theme(legend.key.size=unit(3, "cm"))
+    gg <- gg + theme(legend.key.width=unit(1, "cm"))
+    # Save
+    ggsave("plot/MCC.png", gg, dpi=120, width=10, height=12)
+}
+
+aggregateMCC <- function(){
+    out <- c()
+    nM <- length(BinMethods)
+    nS <- length(Samples)
+    for(i in 1:nM){
+        for(j in 1:nS){
+            inputfile <- paste0("output/",
+                BinMethods[i], "/MCC/", Samples[j], ".RData")
+            load(inputfile)
+            mcc <- unlist(mcc)
+            target <- which(!is.nan(mcc))
+            out = c(out, mean(mcc[target]))
+        }
+    }
+    tmp <- as.vector(
+            sapply(BinMethods, function(x){
+                rep(x, length=nS)}))
+    df <- data.frame(
+        BinMethods=tmp,
+        Samples=Label.Samples,
+        MCC=out)
+    df$BinMethods <- factor(df$BinMethods,
+        levels=unique(df$BinMethods))
+    df$Samples <- factor(df$Samples,
+        levels=unique(df$Samples))
+    df$MCC[which(df$MCC < 0)] <- 0
+    df
+}
+
+# FPR
+Plot_FPR <- function(){
+    df <- aggregateFPR()
+    # Plot
+    gg <- ggplot(df, aes(x=BinMethods, y=Samples, fill=FPR))
+    gg <- gg + geom_tile(color="white", size=0.1)
+    gg <- gg + facet_grid(Samples~., scales="free_y", space="free")
+    gg <- gg + scale_fill_viridis(name="FPR", limits=c(0, max(df$FPR)))
+    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=9))
+    gg <- gg + theme(axis.text.y=element_blank(), axis.title.y=element_blank())
+    gg <- gg + theme(axis.text.x=element_text(size = 30, hjust = 0, angle = -60), axis.title.x=element_blank())
+    gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
+    gg <- gg + theme(legend.text = element_text(size = 30, hjust = 0))
+    gg <- gg + theme(legend.key.size=unit(3, "cm"))
+    gg <- gg + theme(legend.key.width=unit(1, "cm"))
+    # Save
+    ggsave("plot/FPR.png", gg, dpi=120, width=10, height=12)
+}
+
+aggregateFPR <- function(){
+    out <- c()
+    nM <- length(BinMethods)
+    nS <- length(Samples)
+    for(i in 1:nM){
+        for(j in 1:nS){
+            inputfile <- paste0("output/",
+                BinMethods[i], "/FPR/", Samples[j], ".RData")
+            load(inputfile)
+            fpr <- unlist(fpr)
+            target <- which(!is.nan(fpr))
+            out = c(out, mean(fpr[target]))
+        }
+    }
+    tmp <- as.vector(
+            sapply(BinMethods, function(x){
+                rep(x, length=nS)}))
+    df <- data.frame(
+        BinMethods=tmp,
+        Samples=Label.Samples,
+        FPR=out)
+    df$BinMethods <- factor(df$BinMethods,
+        levels=unique(df$BinMethods))
+    df$Samples <- factor(df$Samples,
+        levels=unique(df$Samples))
+    df$FPR[which(df$FPR < 0)] <- 0
+    df
+}
+
+# FNR
+Plot_FNR <- function(){
+    df <- aggregateFNR()
+    # Plot
+    gg <- ggplot(df, aes(x=BinMethods, y=Samples, fill=FNR))
+    gg <- gg + geom_tile(color="white", size=0.1)
+    gg <- gg + facet_grid(Samples~., scales="free_y", space="free")
+    gg <- gg + scale_fill_viridis(name="FNR", limits=c(0, max(df$FNR)))
+    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=9))
+    gg <- gg + theme(axis.text.y=element_blank(), axis.title.y=element_blank())
+    gg <- gg + theme(axis.text.x=element_text(size = 30, hjust = 0, angle = -60), axis.title.x=element_blank())
+    gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
+    gg <- gg + theme(legend.text = element_text(size = 30, hjust = 0))
+    gg <- gg + theme(legend.key.size=unit(3, "cm"))
+    gg <- gg + theme(legend.key.width=unit(1, "cm"))
+    # Save
+    ggsave("plot/FNR.png", gg, dpi=120, width=10, height=12)
+}
+
+aggregateFNR <- function(){
+    out <- c()
+    nM <- length(BinMethods)
+    nS <- length(Samples)
+    for(i in 1:nM){
+        for(j in 1:nS){
+            inputfile <- paste0("output/",
+                BinMethods[i], "/FNR/", Samples[j], ".RData")
+            load(inputfile)
+            fnr <- unlist(fnr)
+            target <- which(!is.nan(fnr))
+            out = c(out, mean(fnr[target]))
+        }
+    }
+    tmp <- as.vector(
+            sapply(BinMethods, function(x){
+                rep(x, length=nS)}))
+    df <- data.frame(
+        BinMethods=tmp,
+        Samples=Label.Samples,
+        FNR=out)
+    df$BinMethods <- factor(df$BinMethods,
+        levels=unique(df$BinMethods))
+    df$Samples <- factor(df$Samples,
+        levels=unique(df$Samples))
+    df$FNR[which(df$FNR < 0)] <- 0
+    df
+}
+
+# PR
+Plot_PR <- function(){
+    df <- aggregatePR()
+    # Plot
+    gg <- ggplot(df, aes(x=BinMethods, y=Samples, fill=PR))
+    gg <- gg + geom_tile(color="white", size=0.1)
+    gg <- gg + facet_grid(Samples~., scales="free_y", space="free")
+    gg <- gg + scale_fill_viridis(name="PR", limits=c(0, max(df$PR)))
+    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=9))
+    gg <- gg + theme(axis.text.y=element_blank(), axis.title.y=element_blank())
+    gg <- gg + theme(axis.text.x=element_text(size = 30, hjust = 0, angle = -60), axis.title.x=element_blank())
+    gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
+    gg <- gg + theme(legend.text = element_text(size = 30, hjust = 0))
+    gg <- gg + theme(legend.key.size=unit(3, "cm"))
+    gg <- gg + theme(legend.key.width=unit(1, "cm"))
+    # Save
+    ggsave("plot/PR.png", gg, dpi=120, width=10, height=12)
+}
+
+aggregatePR <- function(){
+    out <- c()
+    nM <- length(BinMethods)
+    nS <- length(Samples)
+    for(i in 1:nM){
+        for(j in 1:nS){
+            inputfile <- paste0("output/",
+                BinMethods[i], "/PR/", Samples[j], ".RData")
+            load(inputfile)
+            pr <- unlist(pr)
+            target <- which(!is.nan(pr))
+            out = c(out, mean(pr[target]))
+        }
+    }
+    tmp <- as.vector(
+            sapply(BinMethods, function(x){
+                rep(x, length=nS)}))
+    df <- data.frame(
+        BinMethods=tmp,
+        Samples=Label.Samples,
+        PR=out)
+    df$BinMethods <- factor(df$BinMethods,
+        levels=unique(df$BinMethods))
+    df$Samples <- factor(df$Samples,
+        levels=unique(df$Samples))
+    df$PR[which(df$PR < 0)] <- 0
+    df
+}
+
+# TR
+TR <- function(trueCaH){
+    tc <- lapply(trueCaH, function(t){
+        length(which(t == 1)) / length(t)
+    })
+    sum(unlist(tc))
+}
+
+Plot_TR <- function(){
+    df <- aggregateTR()
+    # Plot
+    gg <- ggplot(df, aes(x=Samples, y=TR, fill=Samples))
+    gg <- gg + geom_bar(stat="identity")
+    gg <- gg + theme(axis.text.y=element_text(size = 30), axis.title.y=element_blank())
+    gg <- gg + theme(axis.text.x=element_text(size = 30, hjust = 0, angle = -90), axis.title.x=element_blank())
+    gg <- gg + theme(legend.position="none")
+    # Save
+    ggsave("plot/TR.png", gg, dpi=240, width=6, height=9)
+}
+
+aggregateTR <- function(){
+    out <- c()
+    nS <- length(Samples)
+    for(i in 1:nS){
+        inputfile <- paste0("data/groundtruth/", Samples[i], ".RData")
+        load(inputfile)
+        out = c(out, TR(trueCaH))
+    }
+    df <- data.frame(
+        Samples=Label.Samples,
+        TR=out)
+    df$Samples <- factor(df$Samples,
+        levels=unique(df$Samples))
+    df$TR[which(df$TR < 0)] <- 0
     df
 }
 
@@ -235,7 +534,7 @@ Plot_AUC <- function(){
     gg <- gg + geom_tile(color="white", size=0.1)
     gg <- gg + facet_grid(Samples~., scales="free_y", space="free")
     gg <- gg + scale_fill_viridis(name="AUC", limits=c(0, 1))
-    gg <- gg + theme(strip.text = element_text(colour="blue3", face=2, size=13))
+    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=9))
     gg <- gg + theme(axis.text.y=element_blank(), axis.title.y=element_blank())
     gg <- gg + theme(axis.text.x=element_text(size = 30, hjust = 0, angle = -60), axis.title.x=element_blank())
     gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
@@ -243,26 +542,11 @@ Plot_AUC <- function(){
     gg <- gg + theme(legend.key.size=unit(3, "cm"))
     gg <- gg + theme(legend.key.width=unit(1, "cm"))
     # Save
-    outfile <- "plot/AUC.png"
-    ggsave(outfile, gg, dpi=120, width=10, height=12)
+    ggsave("plot/AUC.png", gg, dpi=120, width=10, height=12)
 }
 
 aggregateAUC <- function(){
     out <- c()
-    Methods = c("labelpermutation_tensor",
-    "labelpermutation",
-    "labelpermutation2_tensor",
-    "labelpermutation2",
-    "halpern_tensor",
-    "halpern",
-    "cabelloaguilar_tensor",
-    "cabelloaguilar",
-    "previous_sctensor",
-    "sctensor")
-    Samples = c("Human_FetalKidney",
-        "Human_NicotinehESCs_Nicotine",
-        "Human_Germline_Female",
-        "Mouse_Uterus")
     nM <- length(Methods)
     nS <- length(Samples)
     for(i in 1:nM){
@@ -280,8 +564,55 @@ aggregateAUC <- function(){
                 rep(x, length=nS)}))
     df <- data.frame(
         Methods=tmp,
-        Samples=c("FetalKidney", "NicotinehESCs", "Germline", "Uterus"),
+        Samples=Label.Samples,
         AUC=out)
+    df$Methods <- factor(df$Methods,
+        levels=unique(df$Methods))
+    df$Samples <- factor(df$Samples,
+        levels=unique(df$Samples))
+    df
+}
+
+# AUCPR
+Plot_AUCPR <- function(){
+    df <- aggregateAUCPR()
+    # Plot
+    gg <- ggplot(df, aes(x=Methods, y=Samples, fill=AUCPR))
+    gg <- gg + geom_tile(color="white", size=0.1)
+    gg <- gg + facet_grid(Samples~., scales="free_y", space="free")
+    gg <- gg + scale_fill_viridis(name="AUCPR", limits=c(0, max(df$AUCPR)))
+    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=9))
+    gg <- gg + theme(axis.text.y=element_blank(), axis.title.y=element_blank())
+    gg <- gg + theme(axis.text.x=element_text(size = 30, hjust = 0, angle = -60), axis.title.x=element_blank())
+    gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
+    gg <- gg + theme(legend.text = element_text(size = 30, hjust = 0))
+    gg <- gg + theme(legend.key.size=unit(3, "cm"))
+    gg <- gg + theme(legend.key.width=unit(1, "cm"))
+    # Save
+    ggsave("plot/AUCPR.png", gg, dpi=120, width=10, height=12)
+}
+
+aggregateAUCPR <- function(){
+    out <- c()
+    nM <- length(Methods)
+    nS <- length(Samples)
+    for(i in 1:nM){
+        for(j in 1:nS){
+            inputfile <- paste0("output/",
+                Methods[i], "/AUCPR/", Samples[j], ".RData")
+            load(inputfile)
+            aucpr <- unlist(aucpr)
+            target <- which(!is.nan(aucpr))
+            out = c(out, mean(aucpr[target]))
+        }
+    }
+    tmp <- as.vector(
+            sapply(Methods, function(x){
+                rep(x, length=nS)}))
+    df <- data.frame(
+        Methods=tmp,
+        Samples=Label.Samples,
+        AUCPR=out)
     df$Methods <- factor(df$Methods,
         levels=unique(df$Methods))
     df$Samples <- factor(df$Samples,
@@ -329,6 +660,53 @@ Plot_ROC_AUC_F <- function(roc, auc, f, outfile){
     legend(my.x, my.y, legend.text,
         cex=my.cex, bty="n",
         col=colvec[seq_along(roc)], pch=16)
+    dev.off()
+}
+
+Plot_PRC_AUCPR_MCC <- function(trueCaH, prc, aucpr, mcc, outfile){
+    colvec <- .ggdefault_cols(length(prc))
+    ymax <- max(unlist(lapply(prc, function(x){
+        max(x$y, na.rm=TRUE)})))
+    ylim=c(0, ymax)
+    baseline <- lapply(trueCaH, function(x){
+        length(which(x == 1)) / length(x)
+    })
+    png(file=outfile, width=1000, height=500)
+    par(ps=22)
+    par(plt=c(0.07, 0.93, 0.12, 0.88))
+    for(i in seq_along(prc)){
+        plot(prc[[i]],
+            col=colvec[i],
+            cex=2, pch=16, type="b", xlab="Recall (Sensitivity)",
+            ylab="Precision (PPV)",
+            main="", xlim=c(0, 1), ylim=ylim)
+        abline(h = baseline[[i]], col=colvec[i])
+        par(new=TRUE)
+    }
+    # Legend
+    l <- length(prc)
+    # Human_Germline_Female, Mouse_Uterus, Human_FetalKidney
+    if(1 <= l && l < 10){
+        my.x <- 0.53
+        my.y <- 0.9 * ymax
+        my.cex <- 1.5
+    }
+    # Human_NicotinehESCs_Nicotine
+    if(11 <= l && l < 25){
+        my.x <- 0.8
+        my.y <- 0.9 * ymax
+        my.cex <- 0.6
+    }
+    # Legend
+    if(is.null(mcc)){
+        legend.text <- paste0("AUCPR: ", unlist(aucpr))
+    }else{
+        legend.text <- paste0("AUCPR: ", unlist(aucpr),
+            ", MCC: ", round(unlist(mcc), digits=7))
+    }
+    legend(my.x, my.y, legend.text,
+        cex=my.cex, bty="n",
+        col=colvec[seq_along(prc)], pch=16)
     dev.off()
 }
 
@@ -428,6 +806,11 @@ AUC <- function(score, trueCaH){
     round(performance(pred, "auc")@y.values[[1]], 2)
 }
 
+AUCPR <- function(score, trueCaH){
+    pred <- prediction(score, trueCaH)
+    round(performance(pred, "aucpr")@y.values[[1]], 2)
+}
+
 Fmeasure <- function(predict, label){
     TP <- length(intersect(which(predict == 1), which(label == 1)))
     FP <- length(intersect(which(predict == 1), which(label == 0)))
@@ -435,6 +818,26 @@ Fmeasure <- function(predict, label){
     Precision <- TP / (TP + FP)
     Recall <- TP / (TP + FN)
     (2 * Recall * Precision) / (Recall + Precision)
+}
+
+MCC <- function(predict, label){
+    cor(predict, label, method="pearson")
+}
+
+FPR <- function(predict, label){
+    FP <- length(intersect(which(predict == 1), which(label == 0)))
+    TN <- length(intersect(which(predict == 0), which(label == 0)))
+    FP / (TN + FP)
+}
+
+FNR <- function(predict, label){
+    TP <- length(intersect(which(predict == 1), which(label == 1)))
+    FN <- length(intersect(which(predict == 0), which(label == 1)))
+    FN / (TP + FN)
+}
+
+PR <- function(predict){
+    length(which(predict == 1)) / length(predict)
 }
 
 Tensor2Vec <- function(ncelltypes, cci, out){
@@ -456,23 +859,49 @@ ROCCurve = function(score, actual){
     list(x=x, y=y)
 }
 
-ROC_AUC_BIN_F <- function(ncelltypes, cif, trueCaH, out, outfile1, outfile2, outfile3, outfile4, pval=FALSE){
+PRCCurve <- function(score, actual){
+    pred <- prediction(score, actual)
+    perf <- performance(pred, "prec", "rec")
+    x <- perf@x.values[[1]]
+    y <- perf@y.values[[1]]
+    list(x=x, y=y)
+}
+
+ROC_AUC_BIN_F <- function(ncelltypes, cif, trueCaH, out, outfile1, outfile2, outfile3, outfile4, outfile5, outfile6, outfile7, outfile8, outfile9, outfile10, pval=FALSE){
     # Scoring
     if(pval){
         score <- Tensor2Vec(ncelltypes, cif, 1 - out$pval)
-        bin <- score
-	    target <- which(bin < 0.05)
+        bin <- 1 - score
+	    target <- which(p.adjust(bin) < 0.1)
 	    # Binarization
-	    bin[target] <- 0
-	    bin[setdiff(seq(length(bin)), target)] <- 1
+	    bin[target] <- 1
+	    bin[setdiff(seq(length(bin)), target)] <- 0
 	    # F-measure
         f <- lapply(trueCaH, function(t, bin){
 		    Fmeasure(bin, t)
     	}, bin=bin)
+        # MCC
+        mcc <- lapply(trueCaH, function(t, bin){
+            MCC(bin, t)
+        }, bin=bin)
+        # FPR
+        fpr <- lapply(trueCaH, function(t, bin){
+            FPR(bin, t)
+        }, bin=bin)
+        # FNR
+        fnr <- lapply(trueCaH, function(t, bin){
+            FNR(bin, t)
+        }, bin=bin)
+        # PR
+        pr <- PR(bin)
     }else{
         score <- Tensor2Vec(ncelltypes, cif, out$tnsr)
         bin <- NULL
         f <- NULL
+        mcc <- NULL
+        fpr <- NULL
+        fnr <- NULL
+        pr <- NULL
     }
     # AUC
     auc <- lapply(trueCaH, function(t, score){
@@ -482,20 +911,49 @@ ROC_AUC_BIN_F <- function(ncelltypes, cif, trueCaH, out, outfile1, outfile2, out
     roc <- lapply(trueCaH, function(t, score){
         ROCCurve(score, t)
     }, score=score)
+    # AUCPR
+    aucpr <- lapply(trueCaH, function(t, score){
+        AUCPR(score, t)
+    }, score=score)
+    # PRC
+    prc <- lapply(trueCaH, function(t, score){
+        PRCCurve(score, t)
+    }, score=score)
     # Save
     save(roc, file=outfile1)
     save(auc, file=outfile2)
     save(bin, file=outfile3)
     save(f, file=outfile4)
+    save(prc, file=outfile5)
+    save(aucpr, file=outfile6)
+    save(mcc, file=outfile7)
+    save(fpr, file=outfile8)
+    save(fnr, file=outfile9)
+    save(pr, file=outfile10)
 }
 
 BIN <- function(out, x){
-	L <- scTensor:::.HCLUST(out$ligand[x[1],])
-	R <- scTensor:::.HCLUST(out$receptor[x[2],])
-	LR <- scTensor:::.HCLUST(out$lrpair[x[3],])
+	# L <- scTensor:::.HCLUST(out$ligand[x[1],])
+	# R <- scTensor:::.HCLUST(out$receptor[x[2],])
+	# LR <- scTensor:::.HCLUST(out$lrpair[x[3],])
+    # L <- .HCLUST(out$ligand[x[1],])
+    # R <- .HCLUST(out$receptor[x[2],])
+    # LR <- .HCLUST(out$lrpair[x[3],])
     # L <- .DBSCAN(out$ligand[x[1],])
     # R <- .DBSCAN(out$receptor[x[2],])
     # LR <- .DBSCAN(out$lrpair[x[3],])
+    # L <- .KMEANS(out$ligand[x[1],])
+    # R <- .KMEANS(out$receptor[x[2],])
+    # LR <- .KMEANS(out$lrpair[x[3],])
+    # L <- .GMM(out$ligand[x[1],])
+    # R <- .GMM(out$receptor[x[2],])
+    # LR <- .GMM(out$lrpair[x[3],])
+    # L <- .SD(out$ligand[x[1],])
+    # R <- .SD(out$receptor[x[2],])
+    # LR <- .SD(out$lrpair[x[3],])
+    L <- .MAD(out$ligand[x[1],])
+    R <- .MAD(out$receptor[x[2],])
+    LR <- .MAD(out$lrpair[x[3],])
 	L[which(L == "selected")] <- 1
 	R[which(R == "selected")] <- 1
 	LR[which(LR == "selected")] <- 1
@@ -526,7 +984,45 @@ ROCAUCF <- function(trueCaH, score, bin){
 	    }, other=list(score=score, bin=bin))
 }
 
-ROC_AUC_BIN_F_previous_sctensor <- function(trueCaH, out, outfile1, outfile2, outfile3, outfile4){
+ROCAUCF2 <- function(trueCaH, score, bin){
+    lapply(trueCaH, function(t, other){
+            # Max ROC-AUC Search
+            score <- other$score
+            bin <- other$bin
+            tmp <- unlist(lapply(score, function(s, t){
+                AUC(as.vector(s@data), t)
+            }, t=t))
+            maxposition <- which(max(tmp) == tmp)[1]
+            # AUC
+            auc <- max(tmp)
+            # ROC
+            roc <- ROCCurve(as.vector(score[[maxposition]]@data), t)
+            # F-measure
+            f <- Fmeasure(as.vector(bin[[maxposition]]@data), t)
+            # Max ROC-AUC Search 2
+            tmp2 <- unlist(lapply(score, function(s, t){
+                AUCPR(as.vector(s@data), t)
+            }, t=t))
+            maxposition2 <- which(max(tmp2) == tmp2)[1]
+            # AUC
+            aucpr <- max(tmp2)
+            # PRC
+            prc <- PRCCurve(as.vector(score[[maxposition2]]@data), t)
+            # MCC
+            mcc <- MCC(as.vector(bin[[maxposition2]]@data), t)
+            # FPR
+            fpr <- FPR(as.vector(bin[[maxposition2]]@data), t)
+            # FNR
+            fnr <- FNR(as.vector(bin[[maxposition2]]@data), t)
+            # PR
+            pr <- PR(as.vector(bin[[maxposition2]]@data))
+            # Output
+            list(auc=auc, roc=roc, f=f, aucpr=aucpr, prc=prc,
+                mcc=mcc, fpr=fpr, fnr=fnr, pr=pr)
+        }, other=list(score=score, bin=bin))
+}
+
+ROC_AUC_BIN_F_previous_sctensor <- function(trueCaH, out, outfile1, outfile2, outfile3, outfile4, outfile5, outfile6, outfile7, outfile8, outfile9, outfile10){
     # Scoring
     score <- apply(out$index, 1, function(x){
         nnTensor::recTensor(x[4],
@@ -547,7 +1043,7 @@ ROC_AUC_BIN_F_previous_sctensor <- function(trueCaH, out, outfile1, outfile2, ou
                 as.matrix(lrpair)), reverse=TRUE)
     })
     # ROC / AUC
-    rocaucf <- ROCAUCF(trueCaH, score, bin)
+    rocaucf <- ROCAUCF2(trueCaH, score, bin)
     roc <- lapply(rocaucf, function(raf){
     	raf$roc
     })
@@ -557,13 +1053,38 @@ ROC_AUC_BIN_F_previous_sctensor <- function(trueCaH, out, outfile1, outfile2, ou
     f <- lapply(rocaucf, function(raf){
     	raf$f
     })
+    prc <- lapply(rocaucf, function(raf){
+        raf$prc
+    })
+    aucpr <- lapply(rocaucf, function(raf){
+        raf$aucpr
+    })
+    mcc <- lapply(rocaucf, function(raf){
+        raf$mcc
+    })
+    fpr <- lapply(rocaucf, function(raf){
+        raf$fpr
+    })
+    fnr <- lapply(rocaucf, function(raf){
+        raf$fnr
+    })
+    pr <- lapply(rocaucf, function(raf){
+        raf$pr
+    })
     # Save
     save(roc, file=outfile1)
     save(auc, file=outfile2)
     save(bin, file=outfile3)
     save(f, file=outfile4)
+    save(prc, file=outfile5)
+    save(aucpr, file=outfile6)
+    save(mcc, file=outfile7)
+    save(fpr, file=outfile8)
+    save(fnr, file=outfile9)
+    save(pr, file=outfile10)
 }
 
+# previous_sctensorはよくなったが、sctensorはよくならなかった
 .DBSCAN <- function(x){
     cluster <- .searchEPS(x)
     max1 <- max(x[which(cluster == 1)])
@@ -575,6 +1096,67 @@ ROC_AUC_BIN_F_previous_sctensor <- function(trueCaH, out, outfile1, outfile2, ou
         cluster[which(cluster == 1)] <- "not selected"
         cluster[which(cluster == 2)] <- "selected"
     }
+    cluster
+}
+
+# single, complete, ward.D2, average, median, centroid, mcquittyはやった
+# medianが良さそう
+.HCLUST <- function(x){
+    out <- hclust(dist(x), method="mcquitty")
+    cluster <- cutree(out, 2)
+    max1 <- max(x[which(cluster == 1)])
+    max2 <- max(x[which(cluster == 2)])
+    if(max1 > max2){
+        cluster[which(cluster == 1)] <- "selected"
+        cluster[which(cluster == 2)] <- "not selected"
+    }else{
+        cluster[which(cluster == 1)] <- "not selected"
+        cluster[which(cluster == 2)] <- "selected"
+    }
+    cluster
+}
+
+.KMEANS <- function(x){
+    cluster <- kmeans(x, centers=2)$cluster
+    max1 <- max(x[which(cluster == 1)])
+    max2 <- max(x[which(cluster == 2)])
+    if(max1 > max2){
+        cluster[which(cluster == 1)] <- "selected"
+        cluster[which(cluster == 2)] <- "not selected"
+    }else{
+        cluster[which(cluster == 1)] <- "not selected"
+        cluster[which(cluster == 2)] <- "selected"
+    }
+    cluster
+}
+
+.GMM <- function(x){
+    cluster <- Mclust(x, 2)$classification
+    max1 <- max(x[which(cluster == 1)])
+    max2 <- max(x[which(cluster == 2)])
+    if(max1 > max2){
+        cluster[which(cluster == 1)] <- "selected"
+        cluster[which(cluster == 2)] <- "not selected"
+    }else{
+        cluster[which(cluster == 1)] <- "not selected"
+        cluster[which(cluster == 2)] <- "selected"
+    }
+    cluster
+}
+
+.SD <- function(x, thr=1){
+    cluster <- x - mean(x) / sd(x)
+    target <- which(cluster >= thr)
+    cluster[target] <- "selected"
+    cluster[setdiff(seq(cluster), target)] <- "not selected"
+    cluster
+}
+
+.MAD <- function(x, thr=1.0){
+    cluster <- abs(x - median(x))
+    target <- which((x - median(x)) >= thr*median(cluster))
+    cluster[target] <- "selected"
+    cluster[setdiff(seq(cluster), target)] <- "not selected"
     cluster
 }
 
@@ -599,8 +1181,20 @@ ROC_AUC_BIN_F_previous_sctensor <- function(trueCaH, out, outfile1, outfile2, ou
 }
 
 BIN_2 <- function(out, x){
-    L <- scTensor:::.HCLUST(out$ligand[x[1],])
-    R <- scTensor:::.HCLUST(out$receptor[x[2],])
+    # L <- scTensor:::.HCLUST(out$ligand[x[1],])
+    # R <- scTensor:::.HCLUST(out$receptor[x[2],])
+    # L <- .HCLUST(out$ligand[x[1],])
+    # R <- .HCLUST(out$receptor[x[2],])
+    # L <- .DBSCAN(out$ligand[x[1],])
+    # R <- .DBSCAN(out$receptor[x[2],])
+    # L <- .KMEANS(out$ligand[x[1],])
+    # R <- .KMEANS(out$receptor[x[2],])
+    # L <- .GMM(out$ligand[x[1],])
+    # R <- .GMM(out$receptor[x[2],])
+    # L <- .SD(out$ligand[x[1],])
+    # R <- .SD(out$receptor[x[2],])
+    L <- .MAD(out$ligand[x[1],])
+    R <- .MAD(out$receptor[x[2],])
     L[which(L == "selected")] <- 1
     R[which(R == "selected")] <- 1
     L[which(L == "not selected")] <- 0
@@ -610,7 +1204,7 @@ BIN_2 <- function(out, x){
     list(ligand=L, receptor=R)
 }
 
-ROC_AUC_BIN_F_sctensor <- function(trueCaH, out, outfile1, outfile2, outfile3, outfile4){
+ROC_AUC_BIN_F_sctensor <- function(trueCaH, out, outfile1, outfile2, outfile3, outfile4, outfile5, outfile6, outfile7, outfile8, outfile9, outfile10){
     # Scoring
     score <- apply(out$index, 1, function(x){
         nnTensor::recTensor(x[4],
@@ -621,7 +1215,13 @@ ROC_AUC_BIN_F_sctensor <- function(trueCaH, out, outfile1, outfile2, outfile3, o
     # Binarization
     bin.core <- out$lrpair@data
     for(i in seq(dim(bin.core)[3])){
-        tmp <- scTensor:::.HCLUST(as.vector(bin.core[,,i]))
+        # tmp <- scTensor:::.HCLUST(as.vector(bin.core[,,i]))
+        # tmp <- .HCLUST(as.vector(bin.core[,,i]))
+        # tmp <- .DBSCAN(as.vector(bin.core[,,i]))
+        # tmp <- .KMEANS(as.vector(bin.core[,,i]))
+        # tmp <- .GMM(as.vector(bin.core[,,i]))
+        # tmp <- .SD(as.vector(bin.core[,,i]))
+        tmp <- .MAD(as.vector(bin.core[,,i]))
         tmp[which(tmp == "selected")] <- 1
         tmp[which(tmp == "not selected")] <- 0
         tmp <- as.numeric(tmp)
@@ -640,7 +1240,7 @@ ROC_AUC_BIN_F_sctensor <- function(trueCaH, out, outfile1, outfile2, outfile3, o
                 as.matrix(lrpair)), reverse=TRUE)
     })
     # ROC / AUC
-    rocaucf <- ROCAUCF(trueCaH, score, bin)
+    rocaucf <- ROCAUCF2(trueCaH, score, bin)
     roc <- lapply(rocaucf, function(raf){
     	raf$roc
     })
@@ -650,11 +1250,35 @@ ROC_AUC_BIN_F_sctensor <- function(trueCaH, out, outfile1, outfile2, outfile3, o
     f <- lapply(rocaucf, function(raf){
     	raf$f
     })
+    prc <- lapply(rocaucf, function(raf){
+        raf$prc
+    })
+    aucpr <- lapply(rocaucf, function(raf){
+        raf$aucpr
+    })
+    mcc <- lapply(rocaucf, function(raf){
+        raf$mcc
+    })
+    fpr <- lapply(rocaucf, function(raf){
+        raf$fpr
+    })
+    fnr <- lapply(rocaucf, function(raf){
+        raf$fnr
+    })
+    pr <- lapply(rocaucf, function(raf){
+        raf$pr
+    })
     # Save
     save(roc, file=outfile1)
     save(auc, file=outfile2)
     save(bin, file=outfile3)
     save(f, file=outfile4)
+    save(prc, file=outfile5)
+    save(aucpr, file=outfile6)
+    save(mcc, file=outfile7)
+    save(fpr, file=outfile8)
+    save(fnr, file=outfile9)
+    save(pr, file=outfile10)
 }
 
 groundTruth <- function(spl){

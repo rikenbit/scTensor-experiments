@@ -25,7 +25,9 @@ tnsr <- scTensor:::.cellCellDecomp.Third(
     num.perm=1000,
     decomp=FALSE,
     thr1=log2(5),
-    thr2=25)$cellcelllrpairpattern
+    thr2=25,
+    L1_A=0,
+    L2_A=0)$cellcelllrpairpattern
 
 l1 <- min(dim(tnsr)[1], dim(tnsr)[2]*dim(tnsr)[3])
 l2 <- min(dim(tnsr)[2], dim(tnsr)[3]*dim(tnsr)[1])
@@ -62,6 +64,8 @@ out <- scTensor:::.cellCellDecomp.Third_2(
     decomp=TRUE,
     thr1=log2(5),
     thr2=25,
+    L1_A=0,
+    L2_A=0,
     verbose=TRUE)
 
 # Save
