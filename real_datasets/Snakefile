@@ -7,7 +7,6 @@ container: "docker://koki/sctensor-experiments:20220208"
 
 SAMPLES = ["Human_Germline_Female",
     "Human_FetalKidney",
-    "Human_NicotinehESCs_Nicotine",
     "Human_HeadandNeckCancer",
     "Mouse_Uterus",
     "Mouse_VisualCortex"]
@@ -45,7 +44,11 @@ rule real_all:
         expand('plot/{types}.png',
             types=['AUC', 'AUCPR', 'F', 'MCC',
             'FPR', 'FNR', 'PR', 'Time', 'Memory']),
-        expand('plot/TR.png')
+        expand('plot/TR.png'),
+        expand('plot/L-R/CHECK_{binmethod}_{sample}',
+            binmethod=BINMETHODS, sample=SAMPLES),
+        expand('output/report/{sample}/index.html',
+            sample=SAMPLES)
 
 rule preprocess:
     output:
@@ -247,7 +250,10 @@ rule real_roc_auc_bin_f:
         out7='output/{method}/MCC/{sample}.RData',
         out8='output/{method}/FPR/{sample}.RData',
         out9='output/{method}/FNR/{sample}.RData',
-        out10='output/{method}/PR/{sample}.RData'
+        out10='output/{method}/PR/{sample}.RData',
+        out11='output/{method}/MaxPosition/{sample}.RData',
+        out12='output/{method}/MaxPosition2/{sample}.RData',
+        out13='output/{method}/Score/{sample}.RData'
     resources:
         mem_gb=500
     wildcard_constraints:
@@ -448,3 +454,41 @@ rule real_plot_memory:
         'logs/plot_memory.log'
     shell:
         'src/plot_memory.sh {output} > {log}'
+
+rule real_plot_lr:
+    input:
+        expand("data/groundtruth/{sample}.RData",
+            sample=SAMPLES),
+        expand('output/{binmethod}/MaxPosition/{sample}.RData',
+            binmethod=BINMETHODS, sample=SAMPLES),
+        expand('output/{binmethod}/MaxPosition2/{sample}.RData',
+            binmethod=BINMETHODS, sample=SAMPLES),
+        expand('output/{binmethod}/Score/{sample}.RData',
+            binmethod=BINMETHODS, sample=SAMPLES)
+    output:
+        'plot/L-R/CHECK_{binmethod}_{sample}'
+    resources:
+        mem_gb=50
+    wildcard_constraints:
+        binmethod='|'.join([re.escape(x) for x in BINMETHODS])
+    benchmark:
+        'benchmarks/plot_L-R_{binmethod}_{sample}.txt'
+    log:
+        'logs/plot_L-R_{binmethod}_{sample}.log'
+    shell:
+        'src/plot_LR.sh {wildcards.binmethod} {wildcards.sample} {output} > {log}'
+
+rule report:
+    input:
+        'data/{sample}/{sample}.RData',
+        'output/sctensor/{sample}.RData'
+    output:
+        'output/report/{sample}/index.html'
+    resources:
+        mem_gb=50
+    benchmark:
+        'benchmarks/report_{sample}.txt'
+    log:
+        'logs/report_{sample}.log'
+    shell:
+        'src/report.sh {input} {output} > {log}'

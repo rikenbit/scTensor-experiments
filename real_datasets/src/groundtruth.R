@@ -57,31 +57,33 @@ for(i in seq(ntypepairs)){
 	}
 	ligandid <- intersect(ligandid, allgeneid)
 	receptorid <- intersect(receptorid, allgeneid)
-	target <- intersect(
-		which(uniq.pairs[i,1] == truepairs[,1]),
-		which(uniq.pairs[i,2] == truepairs[,2]))
-	celltypesL <- unique(truepairs[target, 3])
-	celltypesR <- unique(truepairs[target, 4])
-	lposition <- sort(unique(unlist(lapply(celltypesL, function(x){
-		which(x == unique(names(celltypes)))
-	}))))
-	rposition <- sort(unique(unlist(lapply(celltypesR, function(x){
-		which(x == unique(names(celltypes)))
-	}))))
-	check1 <- length(lposition) == dim(out$tnsr)[1]
-	check2 <- length(rposition) == dim(out$tnsr)[2]
-	if(!check1 || !check2){
-		# cci*
-		eval(parse(text=paste(
-			c("cci", i, " <- multicciInfo(lposition=lposition, rposition=rposition, ligandid=ligandid, receptorid=receptorid, out)"), collapse="")))
+	if((length(ligandid) != 0) && (length(receptorid) != 0)){
+		target <- intersect(
+			which(uniq.pairs[i,1] == truepairs[,1]),
+			which(uniq.pairs[i,2] == truepairs[,2]))
+		celltypesL <- unique(truepairs[target, 3])
+		celltypesR <- unique(truepairs[target, 4])
+		lposition <- sort(unique(unlist(lapply(celltypesL, function(x){
+			which(x == unique(names(celltypes)))
+		}))))
+		rposition <- sort(unique(unlist(lapply(celltypesR, function(x){
+			which(x == unique(names(celltypes)))
+		}))))
+		check1 <- length(lposition) == dim(out$tnsr)[1]
+		check2 <- length(rposition) == dim(out$tnsr)[2]
+		if(!check1 || !check2){
+			# cci*
+			eval(parse(text=paste(
+				c("cci", i, " <- multicciInfo(lposition=lposition, rposition=rposition, ligandid=ligandid, receptorid=receptorid, out)"), collapse="")))
+		}else{
+			stop("All the celltypes are expressed!!!")
+		}
 	}else{
-		stop("All the celltypes are expressed!!!")
+		stop(paste0(i, "-th LR pair is not found"))
 	}
-	rm(ligandid)
-	rm(receptorid)
 }
 
-# # True CaH
+# True CaH
 eval(parse(text=paste0(
 	"trueCaH <- list(",
 	paste0("cci", seq(ntypepairs), "$trueCaH", collapse=","),

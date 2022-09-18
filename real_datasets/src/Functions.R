@@ -22,6 +22,9 @@ library("mclust")
 library("uwot")
 library("Rtsne")
 library("irlba")
+library("fields")
+library("SingleCellExperiment")
+library("RSQLite")
 
 Methods <- c("labelpermutation_tensor",
 "labelpermutation",
@@ -34,6 +37,19 @@ Methods <- c("labelpermutation_tensor",
 "previous_sctensor",
 "sctensor")
 
+Methods_Paper <- c("Sum Score",
+"Sum Score (P-value)",
+"Product Score",
+"Product Score (P-value)",
+"Halpern's Score",
+"Halpern's Score (P-value)",
+"Cabello-Aguilar's Score",
+"Cabello-Aguilar's Score (P-value)",
+"scTensor (NTD-3)",
+"scTensor (NTD-2)")
+
+names(Methods_Paper) <- Methods
+
 BinMethods <- c(
 "labelpermutation",
 "labelpermutation2",
@@ -42,20 +58,27 @@ BinMethods <- c(
 "previous_sctensor",
 "sctensor")
 
+BinMethods_Paper <- c(
+"Sum Score (P-value)",
+"Product Score (P-value)",
+"Halpern's Score (P-value)",
+"Cabello-Aguilar's Score (P-value)",
+"scTensor (NTD-3)",
+"scTensor (NTD-2)")
+
+names(BinMethods_Paper) <- BinMethods
+
 Samples <- c("Human_FetalKidney",
-    "Human_NicotinehESCs_Nicotine",
     "Human_Germline_Female",
     "Human_HeadandNeckCancer",
     "Mouse_Uterus",
     "Mouse_VisualCortex")
 
 Label.Samples <- c("Human\nFetalKidney",
-    "Human\nNicotinehESCs\nNicotine",
     "Human\nGermline\nFemale",
-    "Human\nHeadandNeckCancer",
+    "Human\nHeadand\nNeckCancer",
     "Mouse\nUterus",
     "Mouse\nVisualCortex")
-
 
 '%ni%' <- Negate('%in%')
 
@@ -97,6 +120,148 @@ bipartiteGraph <- function(cif, x){
         edge.color=myedgecolor[x-1])
 }
 
+# L-R pairs
+# Method <- "halpern"
+# Sample <- "Human_FetalKidney"
+Plot_LR <- function(Method, Sample, outfile){
+    # Data loading
+    # out, 1-out@pval, out@tnsr
+    inputfile1 <- paste0("output/", Method, "/", Sample, ".RData")
+    # bin
+    inputfile2 <- paste0("output/", Method, "/BIN/", Sample, ".RData")
+    # maxposition（AUC）
+    inputfile3 <- paste0("output/", Method, "/MaxPosition/", Sample, ".RData")
+    # maxposition2（AUCPR）
+    inputfile4 <- paste0("output/", Method, "/MaxPosition2/", Sample, ".RData")
+    # score
+    # P-value系はベクトル、テンソル系はテンソルが入ったリスト
+    inputfile5 <- paste0("output/", Method, "/Score/", Sample, ".RData")
+    # cif: CCIの長さだけあるリスト
+    inputfile6 <- paste0("data/groundtruth/", Sample, ".RData")
+    pval.methods <- c(
+        "labelpermutation", "labelpermutation2",
+        "halpern", "cabelloaguilar")
+    if(Method %in% pval.methods){
+        load(inputfile1)
+        load(inputfile2)
+        load(inputfile5)
+        load(inputfile6)
+        out <- out2
+    }else{
+        load(inputfile1)
+        load(inputfile2)
+        load(inputfile3)
+        load(inputfile4)
+        load(inputfile5)
+        load(inputfile6)
+    }
+    plotSlice(out, bin, score, maxposition, maxposition2, trueCaH, ncelltypes, Sample, Method, cif)
+    file.create(outfile)
+}
+
+plotSlice <- function(out, bin, score, maxposition, maxposition2, trueCaH, ncelltypes, Sample, Method, cif){
+    pval.methods <- c(
+        "labelpermutation", "labelpermutation2",
+        "halpern", "cabelloaguilar")
+    if(Method %in% pval.methods){
+        g <- 1 - out$pval
+        bintnsr <- Vec2Tensor(bin, ncelltypes)
+    }
+    # Plot
+    for(l in 2:length(cif)){
+        # Setting
+        outdir <- paste0("plot/L-R/", Method, "/", Sample)
+        dir.create(outdir, recursive=TRUE)
+        # 1. True CCI
+        truematrix <- outer(cif[[l]]$LPattern, cif[[l]]$RPattern)
+        truematrix <- t(truematrix[nrow(truematrix):1,])
+        # 2. Modesum of score tensor
+        if(Method %in% c("previous_sctensor", "sctensor")){
+            g <- score[[maxposition2[[l-1]]]]@data
+        }
+        target <- which(
+            colSums(
+                modeSum(as.tensor(
+                    Vec2Tensor(trueCaH[[l-1]], ncelltypes)), m=1, drop=TRUE)@data) != 0)
+        outmatrix1 <- g[,,target]
+        outmatrix1 <- t(outmatrix1[nrow(outmatrix1):1,])
+
+        # 3. Modesum of bin tensor
+        if(Method %in% c("previous_sctensor", "sctensor")){
+            bintnsr <- bin[[maxposition2[[l-1]]]]@data
+        }
+        outmatrix2 <- bintnsr[,,target]
+        outmatrix2 <- t(outmatrix2[nrow(outmatrix2):1,])
+
+        # Plot
+        outfile1 <- paste0(outdir, "/CCI", l-1, ".png")
+        png(file=outfile1, width=2100, height=700)
+        par(ps=25)
+        layout(t(1:3))
+        image.plot(outmatrix1, xlab="R", ylab="L",
+            main="Score")
+        image.plot(outmatrix2, xlab="R", ylab="L",
+            main="Binarization")
+        image.plot(truematrix, xlab="R", ylab="L",
+            col=c(rgb(0,0,0,0), rgb(1,0,1)),
+            main="True CCI")
+        dev.off()
+    }
+}
+
+Vec2Tensor_sctensor <- function(score, bin, truecah, ncelltypes){
+    tmp <- unlist(lapply(score, function(s, t){
+        AUC(as.vector(s@data), t)
+    }, t=truecah))
+    maxposition <- which(max(tmp) == tmp)[1]
+    bin[[maxposition]]@data
+}
+
+Vec2Tensor <- function(bin, ncelltypes){
+    counter <- 1
+    npair <- length(bin) / ncelltypes^2
+    out <- array(0, dim=c(ncelltypes, ncelltypes, npair))
+    for(j in seq_len(npair)){
+        tmp <- bin[counter:(counter+ncelltypes^2-1)]
+        dim(tmp) <- c(ncelltypes, ncelltypes)
+        out[,,j] <- tmp
+        counter <- counter + ncelltypes^2
+    }
+    out
+}
+
+returnTensor <- function(out, cif, Method){
+    g <- array(0,
+        dim=c(length(cif$CCI1$LPattern),
+            length(cif$CCI1$RPattern), cif$nPair))
+    if(Method == "previous_sctensor"){
+        for(i in seq_len(nrow(out$index))){
+            mode1 <- out$index[i, "Mode1"]
+            mode2 <- out$index[i, "Mode2"]
+            mode3 <- out$index[i, "Mode3"]
+            core <- out$index[i, "Value"]
+            g <- g + nnTensor::recTensor(core,
+                list(as.matrix(out$ligand[mode1, ]),
+                    as.matrix(out$receptor[mode2, ]),
+                    as.matrix(out$lrpair[mode3, ])),
+                    reverse=TRUE)
+        }
+    }
+    if(Method == "sctensor"){
+        for(i in seq_len(nrow(out$index))){
+            mode1 <- out$index[i, "Mode1"]
+            mode2 <- out$index[i, "Mode2"]
+            core <- out$index[i, "Value"]
+            g <- g + nnTensor::recTensor(core,
+                list(as.matrix(out$ligand[mode1, ]),
+                    as.matrix(out$receptor[mode2, ]),
+                    as.matrix(out$lrpair[mode1, mode2, ]@data)),
+                    reverse=TRUE)
+        }
+    }
+    g
+}
+
 mypanel <- function(l){
     if((1 < l) && (l <= 5)){
         layout(t(seq(l)))
@@ -120,19 +285,19 @@ mywidth <- function(l){
 }
 
 myheight <- function(l){
-    if((1 < l) && (l <= 5)){
+    if((1 <= l) && (l <= 5)){
         height <- 300
     }
-    if((6 < l) && (l <= 10)){
+    if((6 <= l) && (l <= 10)){
         height <- 2 * 300
     }
-    if((11 < l) && (l <= 15)){
+    if((11 <= l) && (l <= 15)){
         height <- 3 * 300
     }
-    if((16 < l) && (l <= 20)){
+    if((16 <= l) && (l <= 20)){
         height <- 4 * 300
     }
-    if((21 < l) && (l <= 25)){
+    if((21 <= l) && (l <= 25)){
         height <- 5 * 300
     }
     height
@@ -154,7 +319,7 @@ Plot_Memory <- function(){
     gg <- gg + geom_tile(color="white", size=0.1)
     gg <- gg + facet_grid(Samples~., scales="free_y", space="free")
     gg <- gg + scale_fill_viridis(name="GB", limits=c(0, max(df$GB)))
-    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=9))
+    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=11))
     gg <- gg + theme(axis.text.y=element_blank(), axis.title.y=element_blank())
     gg <- gg + theme(axis.text.x=element_text(size = 30, hjust = 0, angle = -60), axis.title.x=element_blank())
     gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
@@ -188,7 +353,7 @@ aggregateMemory <- function(){
             sapply(Methods, function(x){
                 rep(x, length=nS)}))
     df <- data.frame(
-        Methods=tmp,
+        Methods=Methods_Paper[tmp],
         Samples=Label.Samples,
         GB=out)
     df$Methods <- factor(df$Methods,
@@ -206,7 +371,7 @@ Plot_Time <- function(){
     gg <- gg + geom_tile(color="white", size=0.1)
     gg <- gg + facet_grid(Samples~., scales="free_y", space="free")
     gg <- gg + scale_fill_viridis(name="Hour", limits=c(0, max(df$Time)))
-    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=9))
+    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=11))
     gg <- gg + theme(axis.text.y=element_blank(), axis.title.y=element_blank())
     gg <- gg + theme(axis.text.x=element_text(size = 30, hjust = 0, angle = -60), axis.title.x=element_blank())
     gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
@@ -240,7 +405,7 @@ aggregateTime <- function(){
             sapply(Methods, function(x){
                 rep(x, length=nS)}))
     df <- data.frame(
-        Methods=tmp,
+        Methods=Methods_Paper[tmp],
         Samples=Label.Samples,
         Time=out)
     df$Methods <- factor(df$Methods,
@@ -258,7 +423,7 @@ Plot_F <- function(){
     gg <- gg + geom_tile(color="white", size=0.1)
     gg <- gg + facet_grid(Samples~., scales="free_y", space="free")
     gg <- gg + scale_fill_viridis(name="F-measure", limits=c(0, max(df$F)))
-    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=9))
+    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=11))
     gg <- gg + theme(axis.text.y=element_blank(), axis.title.y=element_blank())
     gg <- gg + theme(axis.text.x=element_text(size = 30, hjust = 0, angle = -60), axis.title.x=element_blank())
     gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
@@ -287,13 +452,14 @@ aggregateF <- function(){
             sapply(BinMethods, function(x){
                 rep(x, length=nS)}))
     df <- data.frame(
-        BinMethods=tmp,
+        BinMethods=BinMethods_Paper[tmp],
         Samples=Label.Samples,
         F=out)
     df$BinMethods <- factor(df$BinMethods,
         levels=unique(df$BinMethods))
     df$Samples <- factor(df$Samples,
         levels=unique(df$Samples))
+    df$F[which(is.nan(df$F))] <- 0
     df
 }
 
@@ -305,7 +471,7 @@ Plot_MCC <- function(){
     gg <- gg + geom_tile(color="white", size=0.1)
     gg <- gg + facet_grid(Samples~., scales="free_y", space="free")
     gg <- gg + scale_fill_viridis(name="MCC", limits=c(0, max(df$MCC)))
-    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=9))
+    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=11))
     gg <- gg + theme(axis.text.y=element_blank(), axis.title.y=element_blank())
     gg <- gg + theme(axis.text.x=element_text(size = 30, hjust = 0, angle = -60), axis.title.x=element_blank())
     gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
@@ -334,7 +500,7 @@ aggregateMCC <- function(){
             sapply(BinMethods, function(x){
                 rep(x, length=nS)}))
     df <- data.frame(
-        BinMethods=tmp,
+        BinMethods=BinMethods_Paper[tmp],
         Samples=Label.Samples,
         MCC=out)
     df$BinMethods <- factor(df$BinMethods,
@@ -353,7 +519,7 @@ Plot_FPR <- function(){
     gg <- gg + geom_tile(color="white", size=0.1)
     gg <- gg + facet_grid(Samples~., scales="free_y", space="free")
     gg <- gg + scale_fill_viridis(name="FPR", limits=c(0, max(df$FPR)))
-    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=9))
+    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=11))
     gg <- gg + theme(axis.text.y=element_blank(), axis.title.y=element_blank())
     gg <- gg + theme(axis.text.x=element_text(size = 30, hjust = 0, angle = -60), axis.title.x=element_blank())
     gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
@@ -382,7 +548,7 @@ aggregateFPR <- function(){
             sapply(BinMethods, function(x){
                 rep(x, length=nS)}))
     df <- data.frame(
-        BinMethods=tmp,
+        BinMethods=BinMethods_Paper[tmp],
         Samples=Label.Samples,
         FPR=out)
     df$BinMethods <- factor(df$BinMethods,
@@ -401,7 +567,7 @@ Plot_FNR <- function(){
     gg <- gg + geom_tile(color="white", size=0.1)
     gg <- gg + facet_grid(Samples~., scales="free_y", space="free")
     gg <- gg + scale_fill_viridis(name="FNR", limits=c(0, max(df$FNR)))
-    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=9))
+    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=11))
     gg <- gg + theme(axis.text.y=element_blank(), axis.title.y=element_blank())
     gg <- gg + theme(axis.text.x=element_text(size = 30, hjust = 0, angle = -60), axis.title.x=element_blank())
     gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
@@ -430,7 +596,7 @@ aggregateFNR <- function(){
             sapply(BinMethods, function(x){
                 rep(x, length=nS)}))
     df <- data.frame(
-        BinMethods=tmp,
+        BinMethods=BinMethods_Paper[tmp],
         Samples=Label.Samples,
         FNR=out)
     df$BinMethods <- factor(df$BinMethods,
@@ -449,7 +615,7 @@ Plot_PR <- function(){
     gg <- gg + geom_tile(color="white", size=0.1)
     gg <- gg + facet_grid(Samples~., scales="free_y", space="free")
     gg <- gg + scale_fill_viridis(name="PR", limits=c(0, max(df$PR)))
-    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=9))
+    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=11))
     gg <- gg + theme(axis.text.y=element_blank(), axis.title.y=element_blank())
     gg <- gg + theme(axis.text.x=element_text(size = 30, hjust = 0, angle = -60), axis.title.x=element_blank())
     gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
@@ -478,7 +644,7 @@ aggregatePR <- function(){
             sapply(BinMethods, function(x){
                 rep(x, length=nS)}))
     df <- data.frame(
-        BinMethods=tmp,
+        BinMethods=BinMethods_Paper[tmp],
         Samples=Label.Samples,
         PR=out)
     df$BinMethods <- factor(df$BinMethods,
@@ -506,7 +672,7 @@ Plot_TR <- function(){
     gg <- gg + theme(axis.text.x=element_text(size = 30, hjust = 0, angle = -90), axis.title.x=element_blank())
     gg <- gg + theme(legend.position="none")
     # Save
-    ggsave("plot/TR.png", gg, dpi=240, width=6, height=9)
+    ggsave("plot/TR.png", gg, dpi=240, width=9, height=14)
 }
 
 aggregateTR <- function(){
@@ -518,7 +684,7 @@ aggregateTR <- function(){
         out = c(out, TR(trueCaH))
     }
     df <- data.frame(
-        Samples=Label.Samples,
+        Samples=Samples,
         TR=out)
     df$Samples <- factor(df$Samples,
         levels=unique(df$Samples))
@@ -534,7 +700,7 @@ Plot_AUC <- function(){
     gg <- gg + geom_tile(color="white", size=0.1)
     gg <- gg + facet_grid(Samples~., scales="free_y", space="free")
     gg <- gg + scale_fill_viridis(name="AUC", limits=c(0, 1))
-    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=9))
+    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=11))
     gg <- gg + theme(axis.text.y=element_blank(), axis.title.y=element_blank())
     gg <- gg + theme(axis.text.x=element_text(size = 30, hjust = 0, angle = -60), axis.title.x=element_blank())
     gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
@@ -563,7 +729,7 @@ aggregateAUC <- function(){
             sapply(Methods, function(x){
                 rep(x, length=nS)}))
     df <- data.frame(
-        Methods=tmp,
+        Methods=Methods_Paper[tmp],
         Samples=Label.Samples,
         AUC=out)
     df$Methods <- factor(df$Methods,
@@ -581,7 +747,7 @@ Plot_AUCPR <- function(){
     gg <- gg + geom_tile(color="white", size=0.1)
     gg <- gg + facet_grid(Samples~., scales="free_y", space="free")
     gg <- gg + scale_fill_viridis(name="AUCPR", limits=c(0, max(df$AUCPR)))
-    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=9))
+    gg <- gg + theme(strip.text = element_text(colour="blue3", face=1, size=11))
     gg <- gg + theme(axis.text.y=element_blank(), axis.title.y=element_blank())
     gg <- gg + theme(axis.text.x=element_text(size = 30, hjust = 0, angle = -60), axis.title.x=element_blank())
     gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
@@ -610,7 +776,7 @@ aggregateAUCPR <- function(){
             sapply(Methods, function(x){
                 rep(x, length=nS)}))
     df <- data.frame(
-        Methods=tmp,
+        Methods=Methods_Paper[tmp],
         Samples=Label.Samples,
         AUCPR=out)
     df$Methods <- factor(df$Methods,
@@ -711,10 +877,10 @@ Plot_PRC_AUCPR_MCC <- function(trueCaH, prc, aucpr, mcc, outfile){
 }
 
 multicciInfo <- function(lposition, rposition, ligandid, receptorid, out){
-    # Setting
-    colvec <- c(brewer.pal(9, "Set1"),
-        brewer.pal(8, "Set2"),
-        brewer.pal(8, "Dark2"))
+    # # Setting
+    # colvec <- c(brewer.pal(9, "Set1"),
+    #     brewer.pal(8, "Set2"),
+    #     brewer.pal(8, "Dark2"))
     # L/R Pattern
     LPattern <- rep(0, length=dim(out$tnsr)[1])
     RPattern <- rep(0, length=dim(out$tnsr)[2])
@@ -727,12 +893,10 @@ multicciInfo <- function(lposition, rposition, ligandid, receptorid, out){
         unique(names(celltypes)),
         out$pairname
         )
-    target <- grep(paste(c(ligandid, receptorid), collapse="_")
-            , out$pairname)
+    ligand_receptor_id <- paste(c(ligandid, receptorid), collapse="_")
+    target <- which(ligand_receptor_id == out$pairname)
     if(length(target) != 0){
-        trueCaH[lposition, rposition,
-            grep(paste(c(ligandid, receptorid), collapse="_")
-                , out$pairname)] <- 1
+        trueCaH[lposition, rposition, target] <- 1
         trueCaH <- as.vector(trueCaH)
         return(list(
             LPattern=LPattern,
@@ -840,10 +1004,10 @@ PR <- function(predict){
     length(which(predict == 1)) / length(predict)
 }
 
-Tensor2Vec <- function(ncelltypes, cci, out){
+Tensor2Vec <- function(ncelltypes, cif, out){
     counter <- 1
-    score <- rep(0, length=ncelltypes^2*cci$nPair)
-    for(j in seq_len(cci$nPair)){
+    score <- rep(0, length=ncelltypes^2*cif$nPair)
+    for(j in seq_len(cif$nPair)){
         score[counter:(counter+ncelltypes^2-1)] <- as.vector(out[,,j])
         counter <- counter + ncelltypes^2
     }
@@ -867,7 +1031,7 @@ PRCCurve <- function(score, actual){
     list(x=x, y=y)
 }
 
-ROC_AUC_BIN_F <- function(ncelltypes, cif, trueCaH, out, outfile1, outfile2, outfile3, outfile4, outfile5, outfile6, outfile7, outfile8, outfile9, outfile10, pval=FALSE){
+ROC_AUC_BIN_F <- function(ncelltypes, cif, trueCaH, out, outfile1, outfile2, outfile3, outfile4, outfile5, outfile6, outfile7, outfile8, outfile9, outfile10, outfile11, outfile12, outfile13, pval=FALSE){
     # Scoring
     if(pval){
         score <- Tensor2Vec(ncelltypes, cif, 1 - out$pval)
@@ -930,6 +1094,9 @@ ROC_AUC_BIN_F <- function(ncelltypes, cif, trueCaH, out, outfile1, outfile2, out
     save(fpr, file=outfile8)
     save(fnr, file=outfile9)
     save(pr, file=outfile10)
+    file.create(outfile11)
+    file.create(outfile12)
+    save(score, file=outfile13)
 }
 
 BIN <- function(out, x){
@@ -1018,11 +1185,13 @@ ROCAUCF2 <- function(trueCaH, score, bin){
             pr <- PR(as.vector(bin[[maxposition2]]@data))
             # Output
             list(auc=auc, roc=roc, f=f, aucpr=aucpr, prc=prc,
-                mcc=mcc, fpr=fpr, fnr=fnr, pr=pr)
+                mcc=mcc, fpr=fpr, fnr=fnr, pr=pr,
+                maxposition=maxposition,
+                maxposition2=maxposition2)
         }, other=list(score=score, bin=bin))
 }
 
-ROC_AUC_BIN_F_previous_sctensor <- function(trueCaH, out, outfile1, outfile2, outfile3, outfile4, outfile5, outfile6, outfile7, outfile8, outfile9, outfile10){
+ROC_AUC_BIN_F_previous_sctensor <- function(trueCaH, out, outfile1, outfile2, outfile3, outfile4, outfile5, outfile6, outfile7, outfile8, outfile9, outfile10, outfile11, outfile12, outfile13){
     # Scoring
     score <- apply(out$index, 1, function(x){
         nnTensor::recTensor(x[4],
@@ -1071,6 +1240,12 @@ ROC_AUC_BIN_F_previous_sctensor <- function(trueCaH, out, outfile1, outfile2, ou
     pr <- lapply(rocaucf, function(raf){
         raf$pr
     })
+    maxposition <- lapply(rocaucf, function(raf){
+        raf$maxposition
+    })
+    maxposition2 <- lapply(rocaucf, function(raf){
+        raf$maxposition2
+    })
     # Save
     save(roc, file=outfile1)
     save(auc, file=outfile2)
@@ -1082,6 +1257,9 @@ ROC_AUC_BIN_F_previous_sctensor <- function(trueCaH, out, outfile1, outfile2, ou
     save(fpr, file=outfile8)
     save(fnr, file=outfile9)
     save(pr, file=outfile10)
+    save(maxposition, file=outfile11)
+    save(maxposition2, file=outfile12)
+    save(score, file=outfile13)
 }
 
 # previous_sctensorはよくなったが、sctensorはよくならなかった
@@ -1204,7 +1382,7 @@ BIN_2 <- function(out, x){
     list(ligand=L, receptor=R)
 }
 
-ROC_AUC_BIN_F_sctensor <- function(trueCaH, out, outfile1, outfile2, outfile3, outfile4, outfile5, outfile6, outfile7, outfile8, outfile9, outfile10){
+ROC_AUC_BIN_F_sctensor <- function(trueCaH, out, outfile1, outfile2, outfile3, outfile4, outfile5, outfile6, outfile7, outfile8, outfile9, outfile10, outfile11, outfile12, outfile13){
     # Scoring
     score <- apply(out$index, 1, function(x){
         nnTensor::recTensor(x[4],
@@ -1268,6 +1446,12 @@ ROC_AUC_BIN_F_sctensor <- function(trueCaH, out, outfile1, outfile2, outfile3, o
     pr <- lapply(rocaucf, function(raf){
         raf$pr
     })
+    maxposition <- lapply(rocaucf, function(raf){
+        raf$maxposition
+    })
+    maxposition2 <- lapply(rocaucf, function(raf){
+        raf$maxposition2
+    })
     # Save
     save(roc, file=outfile1)
     save(auc, file=outfile2)
@@ -1279,6 +1463,9 @@ ROC_AUC_BIN_F_sctensor <- function(trueCaH, out, outfile1, outfile2, outfile3, o
     save(fpr, file=outfile8)
     save(fnr, file=outfile9)
     save(pr, file=outfile10)
+    save(maxposition, file=outfile11)
+    save(maxposition2, file=outfile12)
+    save(score, file=outfile13)
 }
 
 groundTruth <- function(spl){

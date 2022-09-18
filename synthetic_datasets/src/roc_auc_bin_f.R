@@ -16,6 +16,10 @@ outfile8 <- commandArgs(trailingOnly=TRUE)[10] # FPR
 outfile9 <- commandArgs(trailingOnly=TRUE)[11] # FNR
 # 2022.04.11追加
 outfile10 <- commandArgs(trailingOnly=TRUE)[12] # PR
+# 2022.06.23追加
+outfile11 <- commandArgs(trailingOnly=TRUE)[13] # maxposition
+outfile12 <- commandArgs(trailingOnly=TRUE)[14] # maxposition2
+outfile13 <- commandArgs(trailingOnly=TRUE)[15] # score
 
 # Data loading
 load(infile1)
@@ -34,19 +38,17 @@ pval.methods <- c(
 
 if(method %in% tensor.methods){
     ROC_AUC_BIN_F(ncelltypes, cif, trueCaH, out,
-    	outfile1, outfile2, outfile3, outfile4, outfile5, outfile6, outfile7, outfile8, outfile9, outfile10,
-    	pval=FALSE)
+    	outfile1, outfile2, outfile3, outfile4, outfile5, outfile6, outfile7, outfile8, outfile9, outfile10, outfile11, outfile12, outfile13, pval=FALSE)
 }
 if(method %in% pval.methods){
     ROC_AUC_BIN_F(ncelltypes, cif, trueCaH, out,
-    	outfile1, outfile2, outfile3, outfile4, outfile5, outfile6, outfile7, outfile8, outfile9, outfile10,
-    	pval=TRUE)
+    	outfile1, outfile2, outfile3, outfile4, outfile5, outfile6, outfile7, outfile8, outfile9, outfile10, outfile11, outfile12, outfile13, pval=TRUE)
 }
 if(method == "previous_sctensor"){
     ROC_AUC_BIN_F_previous_sctensor(trueCaH, out,
-    	outfile1, outfile2, outfile3, outfile4, outfile5, outfile6, outfile7, outfile8, outfile9, outfile10)
+    	outfile1, outfile2, outfile3, outfile4, outfile5, outfile6, outfile7, outfile8, outfile9, outfile10, outfile11, outfile12, outfile13)
 }
 if(method == "sctensor"){
     ROC_AUC_BIN_F_sctensor(trueCaH, out,
-    	outfile1, outfile2, outfile3, outfile4, outfile5, outfile6, outfile7, outfile8, outfile9, outfile10)
+    	outfile1, outfile2, outfile3, outfile4, outfile5, outfile6, outfile7, outfile8, outfile9, outfile10, outfile11, outfile12, outfile13)
 }

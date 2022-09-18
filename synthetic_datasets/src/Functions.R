@@ -12,6 +12,49 @@ library("dbscan")
 library("fields")
 library("mclust")
 
+Methods <- c(
+    "labelpermutation_tensor",
+    "labelpermutation",
+    "labelpermutation2_tensor",
+    "labelpermutation2",
+    "halpern_tensor",
+    "halpern",
+    "cabelloaguilar_tensor",
+    "cabelloaguilar",
+    "previous_sctensor",
+    "sctensor")
+
+Methods_Paper <- c("Sum Score",
+"Sum Score (P-value)",
+"Product Score",
+"Product Score (P-value)",
+"Halpern's Score",
+"Halpern's Score (P-value)",
+"Cabello-Aguilar's Score",
+"Cabello-Aguilar's Score (P-value)",
+"scTensor (NTD-3)",
+"scTensor (NTD-2)")
+
+names(Methods_Paper) <- Methods
+
+BinMethods <- c(
+    "labelpermutation",
+    "labelpermutation2",
+    "halpern",
+    "cabelloaguilar",
+    "previous_sctensor",
+    "sctensor")
+
+BinMethods_Paper <- c(
+"Sum Score (P-value)",
+"Product Score (P-value)",
+"Halpern's Score (P-value)",
+"Cabello-Aguilar's Score (P-value)",
+"scTensor (NTD-3)",
+"scTensor (NTD-2)")
+
+names(BinMethods_Paper) <- BinMethods
+
 # Check 2.4.0
 if(packageVersion("scTensor") != "2.4.0"){
     stop("scTensor is not 2.4.0!")
@@ -42,7 +85,7 @@ bipartiteGraph <- function(cif, x){
 }
 
 # L-R pairs
-# Method <- "halpern"
+# Method <- "sctensor"
 # E <- "E10"
 Plot_LR <- function(Method, E, outfile){
     Celltypes=c("3","5","10","20","30")
@@ -62,24 +105,57 @@ Plot_LR <- function(Method, E, outfile){
                     Celltypes[i], "Celltypes_",
                     CCIPatterns[j], "CCIPatterns_",
                     CCI_Complexity[k], ".RData")
-                # Binarized
+                # bin
                 inputfile2 <- paste0("output/",
                     E, "/",
                     Method, "/BIN/",
                     Celltypes[i], "Celltypes_",
                     CCIPatterns[j], "CCIPatterns_",
                     CCI_Complexity[k], ".RData")
-                # cif
-                inputfile3 <- paste0("data/groundtruth/",
+                # maxposition（AUC）
+                inputfile3 <- paste0("output/",
+                    E, "/",
+                    Method, "/MaxPosition/",
                     Celltypes[i], "Celltypes_",
                     CCIPatterns[j], "CCIPatterns_",
                     CCI_Complexity[k], ".RData")
-                load(inputfile1)
-                load(inputfile2)
-                load(inputfile3)
-                plotSlice(out, bin, trueCaH,
-                    ncelltypes, E, Method, cif,
-                    Celltypes[i], CCIPatterns[j], CCI_Complexity[k])
+               # maxposition2（AUCPR）
+                inputfile4 <- paste0("output/",
+                    E, "/",
+                    Method, "/MaxPosition2/",
+                    Celltypes[i], "Celltypes_",
+                    CCIPatterns[j], "CCIPatterns_",
+                    CCI_Complexity[k], ".RData")
+                # score
+                # P-value系はベクトル、テンソル系はテンソルが入ったリスト
+                inputfile5 <- paste0("output/",
+                    E, "/",
+                    Method, "/Score/",
+                    Celltypes[i], "Celltypes_",
+                    CCIPatterns[j], "CCIPatterns_",
+                    CCI_Complexity[k], ".RData")
+                # cif
+                inputfile6 <- paste0("data/groundtruth/",
+                    Celltypes[i], "Celltypes_",
+                    CCIPatterns[j], "CCIPatterns_",
+                    CCI_Complexity[k], ".RData")
+                pval.methods <- c(
+                    "labelpermutation", "labelpermutation2",
+                    "halpern", "cabelloaguilar")
+                if(Method %in% pval.methods){
+                    load(inputfile1)
+                    load(inputfile2)
+                    load(inputfile5)
+                    load(inputfile6)
+                }else{
+                    load(inputfile1)
+                    load(inputfile2)
+                    load(inputfile3)
+                    load(inputfile4)
+                    load(inputfile5)
+                    load(inputfile6)
+                }
+                plotSlice(out, bin, score, maxposition, maxposition2, trueCaH, ncelltypes, E, Method, cif, Celltypes[i], CCIPatterns[j], CCI_Complexity[k])
             }
         }
     }
@@ -89,41 +165,13 @@ Plot_LR <- function(Method, E, outfile){
 # celltypes=Celltypes[i]
 # ccipatterns=CCIPatterns[j]
 # cci_complexity=CCI_Complexity[k]
-plotSlice <- function(out, bin, trueCaH, ncelltypes, E, Method, cif, celltypes, ccipatterns, cci_complexity){
-    tensor.methods <- c(
-        "labelpermutation_tensor", "labelpermutation2_tensor",
-        "halpern_tensor", "cabelloaguilar_tensor")
+plotSlice <- function(out, bin, score, maxposition, maxposition2, trueCaH, ncelltypes, E, Method, cif, celltypes, ccipatterns, cci_complexity){
     pval.methods <- c(
         "labelpermutation", "labelpermutation2",
         "halpern", "cabelloaguilar")
-    if(Method %in% tensor.methods){
-        g <- out$tnsr
-        bintnsr <- Vec2Tensor(bin, ncelltypes)
-    }
     if(Method %in% pval.methods){
         g <- 1 - out$pval
         bintnsr <- Vec2Tensor(bin, ncelltypes)
-    }
-    if(Method == "previous_sctensor"){
-        g <- returnTensor(out, cif, Method)@data
-        # Scoring
-        score <- apply(out$index, 1, function(x){
-            nnTensor::recTensor(x[4],
-                list(as.matrix(out$ligand[x[1], ]),
-                    as.matrix(out$receptor[x[2], ]),
-                    as.matrix(out$lrpair[x[3], ])),
-                        reverse=TRUE)
-        })
-    }
-    if(Method == "sctensor"){
-        g <- returnTensor(out, cif, Method)@data
-        # Scoring
-        score <- apply(out$index, 1, function(x){
-            nnTensor::recTensor(x[4],
-                list(as.matrix(out$ligand[x[1], ]),
-                    as.matrix(out$receptor[x[2], ]),
-                    as.matrix(out$lrpair[x[1], x[2], ]@data)), reverse=TRUE)
-        })
     }
     # Plot
     counter <- 1 # 1,51,101,...
@@ -140,45 +188,67 @@ plotSlice <- function(out, bin, trueCaH, ncelltypes, E, Method, cif, celltypes, 
         # 1. True CCI
         truematrix <- outer(cif[[l]]$LPattern, cif[[l]]$RPattern)
         truematrix <- t(truematrix[nrow(truematrix):1,])
-        match_tnsr_method <- grep("_tensor", Method)
-        if(length(match_tnsr_method) == 0){
-            # 2. Modesum of score tensor
-            start <- counter
-            end <- counter + cif[[l]]$nGene - 1
+
+        # 2. Modesum of score tensor
+        if(Method %in% c("previous_sctensor", "sctensor")){
+            g <- score[[maxposition2[[l-1]]]]@data
+        }
+        start <- counter
+        end <- counter + cif[[l]]$nGene - 1
+        if(start != end){
             outmatrix1 <- modeSum(
                 as.tensor(g[,,start:end]), m=3, drop=TRUE)@data
-            outmatrix1 <- t(outmatrix1[nrow(outmatrix1):1,])
-            # 3. Modesum of bin tensor
-            if(Method %in% c("previous_sctensor", "sctensor")){
-                bintnsr <- Vec2Tensor_sctensor(score, bin, trueCaH[[l-1]], ncelltypes)
-            }
-            outmatrix2 <- modeSum(
-                as.tensor(bintnsr[,,start:end]), m=3, drop=TRUE)@data
-            outmatrix2 <- t(outmatrix2[nrow(outmatrix2):1,])
-            # Plot
-            outfile1 <- paste0(outdir, "/CCI", l-1, ".png")
-            png(file=outfile1, width=2100, height=700)
-            layout(t(1:3))
-            image.plot(outmatrix1, xlab="R", ylab="L",
-                main="Score")
-            image.plot(outmatrix2, xlab="R", ylab="L",
-                main="Binarization")
-            image.plot(truematrix, xlab="R", ylab="L",
-                col=c(rgb(0,0,0,0), rgb(1,0,1)),
-                main="True CCI")
-            dev.off()
+        }else{
+            outmatrix1 <- g[,,start:end]
         }
-        counter2 <- counter # 1,2,3,...51,52,53,...
+        outmatrix1 <- t(outmatrix1[nrow(outmatrix1):1,])
+
+        # 3. Modesum of bin tensor
+        if(Method %in% c("previous_sctensor", "sctensor")){
+            bintnsr <- bin[[maxposition2[[l-1]]]]@data
+        }
+        if(start != end){
+            outmatrix2 <- modeSum(
+            as.tensor(bintnsr[,,start:end]), m=3, drop=TRUE)@data
+        }else{
+            outmatrix2 <- bintnsr[,,start:end]
+        }
+        outmatrix2 <- t(outmatrix2[nrow(outmatrix2):1,])
+
+        # Plot
+        outfile1 <- paste0(outdir, "/CCI", l-1, ".png")
+        png(file=outfile1, width=2100, height=700)
+        par(ps=25)
+        layout(t(1:3))
+        image.plot(outmatrix1, xlab="R", ylab="L",
+            main="Score")
+        image.plot(outmatrix2, xlab="R", ylab="L",
+            main="Binarization")
+        image.plot(truematrix, xlab="R", ylab="L",
+            col=c(rgb(0,0,0,0), rgb(1,0,1)),
+            main="True CCI")
+        dev.off()
+
+        counter2 <- counter # 1,2,3,...,51,52,53,...
         counter <- counter + cif[[l]]$nGene
         # Each L-R pair
         for(m in seq(cif[[l]]$nGene)){
             outfile2 <- paste0(outdir, "/", counter2, ".png")
-            outmatrix3 <- t(g[nrow(g):1,, counter2])
+            # 2. Modesum of score tensor
+            outmatrix3 <- g[,,counter2]
+            outmatrix3 <- t(outmatrix3[nrow(outmatrix3):1,])
+
+            # 3. Modesum of bin tensor
+            outmatrix4 <- bintnsr[,,counter2]
+            outmatrix4 <- t(outmatrix4[nrow(outmatrix4):1,])
+
             # Plot
-            png(file=outfile2, width=1400, height=700)
-            layout(t(1:2))
+            png(file=outfile2, width=2100, height=700)
+            layout(t(1:3))
             image.plot(outmatrix3, xlab="R", ylab="L",
                 main="Score")
+            image.plot(outmatrix4, xlab="R", ylab="L",
+                main="Binarization")
             image.plot(truematrix, xlab="R", ylab="L",
                 col=c(rgb(0,0,0,0), rgb(1,0,1)),
                 main="True CCI")
@@ -296,23 +366,13 @@ aggregateMemory <- function(E, Method){
 }
 
 aggregateMemory_merge <- function(E){
-    Methods <- c(
-        "labelpermutation_tensor",
-        "labelpermutation",
-        "labelpermutation2_tensor",
-        "labelpermutation2",
-        "halpern_tensor",
-        "halpern",
-        "cabelloaguilar_tensor",
-        "cabelloaguilar",
-        "previous_sctensor",
-        "sctensor")
     df <- data.frame()
     for(i in seq_along(Methods)){
         tmp.df <- aggregateMemory(E, Methods[i])
         tmp.df <- cbind(tmp.df, Methods[i])
         df <- rbind(df, tmp.df)
     }
+    df[,5] <- Methods_Paper[df[,5]]
     colnames(df)[5] <- "Methods"
     df$Celltypes <- factor(df$Celltypes,
         levels=unique(df$Celltypes))
@@ -320,7 +380,8 @@ aggregateMemory_merge <- function(E){
         levels=rev(unique(df$CCIPatterns)))
     df$CCI_Complexity <- factor(df$CCI_Complexity,
         levels=c("OnetoOne", "ManytoMany"))
-    df$Methods <- factor(df$Methods, levels=Methods)
+    df$Methods <- factor(df$Methods,
+        levels=Methods_Paper)
     df
 }
 
@@ -335,7 +396,7 @@ Plot_Memory_Merge <- function(E, outfile){
     gg <- gg + theme(axis.text.x=element_blank())
     gg <- gg + theme(axis.title.y=element_text(size = 30))
     gg <- gg + theme(axis.text.y=element_text(size = 30))
-    gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
+    gg <- gg + theme(legend.title = element_blank())
     gg <- gg + theme(legend.text = element_text(size = 30, hjust = 0))
     gg <- gg + theme(legend.key.size=unit(1, "cm"))
     gg <- gg + theme(legend.key.width=unit(1, "cm"))
@@ -420,23 +481,13 @@ aggregateTime <- function(E, Method){
 }
 
 aggregateTime_merge <- function(E){
-    Methods <- c(
-        "labelpermutation_tensor",
-        "labelpermutation",
-        "labelpermutation2_tensor",
-        "labelpermutation2",
-        "halpern_tensor",
-        "halpern",
-        "cabelloaguilar_tensor",
-        "cabelloaguilar",
-        "previous_sctensor",
-        "sctensor")
     df <- data.frame()
     for(i in seq_along(Methods)){
         tmp.df <- aggregateTime(E, Methods[i])
         tmp.df <- cbind(tmp.df, Methods[i])
         df <- rbind(df, tmp.df)
     }
+    df[,5] <- Methods_Paper[df[,5]]
     colnames(df)[5] <- "Methods"
     df$Celltypes <- factor(df$Celltypes,
         levels=unique(df$Celltypes))
@@ -444,7 +495,8 @@ aggregateTime_merge <- function(E){
         levels=rev(unique(df$CCIPatterns)))
     df$CCI_Complexity <- factor(df$CCI_Complexity,
         levels=c("OnetoOne", "ManytoMany"))
-    df$Methods <- factor(df$Methods, levels=Methods)
+    df$Methods <- factor(df$Methods,
+        levels=Methods_Paper)
     df
 }
 
@@ -459,7 +511,7 @@ Plot_Time_Merge <- function(E, outfile){
     gg <- gg + theme(axis.text.x=element_blank())
     gg <- gg + theme(axis.title.y=element_text(size = 30))
     gg <- gg + theme(axis.text.y=element_text(size = 30))
-    gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
+    gg <- gg + theme(legend.title = element_blank())
     gg <- gg + theme(legend.text = element_text(size = 30, hjust = 0))
     gg <- gg + theme(legend.key.size=unit(1, "cm"))
     gg <- gg + theme(legend.key.width=unit(1, "cm"))
@@ -612,19 +664,13 @@ Plot_F_eachCCI <- function(method, E, outfile){
 }
 
 aggregateF_merge <- function(E){
-    BinMethods <- c(
-        "labelpermutation",
-        "labelpermutation2",
-        "halpern",
-        "cabelloaguilar",
-        "previous_sctensor",
-        "sctensor")
     df <- data.frame()
     for(i in seq_along(BinMethods)){
         tmp.df <- aggregateF_eachCCI(E, BinMethods[i])
         tmp.df <- cbind(tmp.df, BinMethods[i])
         df <- rbind(df, tmp.df)
     }
+    df[,6] <- BinMethods_Paper[df[,6]]
     colnames(df)[6] <- "BinMethods"
     df$Celltypes <- factor(df$Celltypes,
         levels=unique(df$Celltypes))
@@ -632,7 +678,8 @@ aggregateF_merge <- function(E){
         levels=rev(unique(df$CCIPatterns)))
     df$CCI_Complexity <- factor(df$CCI_Complexity,
         levels=c("OnetoOne", "ManytoMany"))
-    df$BinMethods <- factor(df$BinMethods, levels=BinMethods)
+    df$BinMethods <- factor(df$BinMethods,
+        levels=BinMethods_Paper)
     df
 }
 
@@ -647,7 +694,7 @@ Plot_F_Merge <- function(E, outfile){
     gg <- gg + theme(axis.text.x=element_blank())
     gg <- gg + theme(axis.title.y=element_text(size = 30))
     gg <- gg + theme(axis.text.y=element_text(size = 30))
-    gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
+    gg <- gg + theme(legend.title = element_blank())
     gg <- gg + theme(legend.text = element_text(size = 30, hjust = 0))
     gg <- gg + theme(legend.key.size=unit(1, "cm"))
     gg <- gg + theme(legend.key.width=unit(1, "cm"))
@@ -803,19 +850,13 @@ Plot_MCC_eachCCI <- function(method, E, outfile){
 }
 
 aggregateMCC_merge <- function(E){
-    BinMethods <- c(
-        "labelpermutation",
-        "labelpermutation2",
-        "halpern",
-        "cabelloaguilar",
-        "previous_sctensor",
-        "sctensor")
     df <- data.frame()
     for(i in seq_along(BinMethods)){
         tmp.df <- aggregateMCC_eachCCI(E, BinMethods[i])
         tmp.df <- cbind(tmp.df, BinMethods[i])
         df <- rbind(df, tmp.df)
     }
+    df[,6] <- BinMethods_Paper[df[,6]]
     colnames(df)[6] <- "BinMethods"
     df$Celltypes <- factor(df$Celltypes,
         levels=unique(df$Celltypes))
@@ -823,7 +864,8 @@ aggregateMCC_merge <- function(E){
         levels=rev(unique(df$CCIPatterns)))
     df$CCI_Complexity <- factor(df$CCI_Complexity,
         levels=c("OnetoOne", "ManytoMany"))
-    df$BinMethods <- factor(df$BinMethods, levels=BinMethods)
+    df$BinMethods <- factor(df$BinMethods,
+        levels=BinMethods_Paper)
     df
 }
 
@@ -838,7 +880,7 @@ Plot_MCC_Merge <- function(E, outfile){
     gg <- gg + theme(axis.text.x=element_blank())
     gg <- gg + theme(axis.title.y=element_text(size = 30))
     gg <- gg + theme(axis.text.y=element_text(size = 30))
-    gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
+    gg <- gg + theme(legend.title = element_blank())
     gg <- gg + theme(legend.text = element_text(size = 30, hjust = 0))
     gg <- gg + theme(legend.key.size=unit(1, "cm"))
     gg <- gg + theme(legend.key.width=unit(1, "cm"))
@@ -989,19 +1031,13 @@ Plot_FPR_eachCCI <- function(method, E, outfile){
 }
 
 aggregateFPR_merge <- function(E){
-    BinMethods <- c(
-        "labelpermutation",
-        "labelpermutation2",
-        "halpern",
-        "cabelloaguilar",
-        "previous_sctensor",
-        "sctensor")
     df <- data.frame()
     for(i in seq_along(BinMethods)){
         tmp.df <- aggregateFPR_eachCCI(E, BinMethods[i])
         tmp.df <- cbind(tmp.df, BinMethods[i])
         df <- rbind(df, tmp.df)
     }
+    df[,6] <- BinMethods_Paper[df[,6]]
     colnames(df)[6] <- "BinMethods"
     df$Celltypes <- factor(df$Celltypes,
         levels=unique(df$Celltypes))
@@ -1009,7 +1045,8 @@ aggregateFPR_merge <- function(E){
         levels=rev(unique(df$CCIPatterns)))
     df$CCI_Complexity <- factor(df$CCI_Complexity,
         levels=c("OnetoOne", "ManytoMany"))
-    df$BinMethods <- factor(df$BinMethods, levels=BinMethods)
+    df$BinMethods <- factor(df$BinMethods,
+        levels=BinMethods_Paper)
     df
 }
 
@@ -1024,7 +1061,7 @@ Plot_FPR_Merge <- function(E, outfile){
     gg <- gg + theme(axis.text.x=element_blank())
     gg <- gg + theme(axis.title.y=element_text(size = 30))
     gg <- gg + theme(axis.text.y=element_text(size = 30))
-    gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
+    gg <- gg + theme(legend.title = element_blank())
     gg <- gg + theme(legend.text = element_text(size = 30, hjust = 0))
     gg <- gg + theme(legend.key.size=unit(1, "cm"))
     gg <- gg + theme(legend.key.width=unit(1, "cm"))
@@ -1175,19 +1212,13 @@ Plot_FNR_eachCCI <- function(method, E, outfile){
 }
 
 aggregateFNR_merge <- function(E){
-    BinMethods <- c(
-        "labelpermutation",
-        "labelpermutation2",
-        "halpern",
-        "cabelloaguilar",
-        "previous_sctensor",
-        "sctensor")
     df <- data.frame()
     for(i in seq_along(BinMethods)){
         tmp.df <- aggregateFNR_eachCCI(E, BinMethods[i])
         tmp.df <- cbind(tmp.df, BinMethods[i])
         df <- rbind(df, tmp.df)
     }
+    df[,6] <- BinMethods_Paper[df[,6]]
     colnames(df)[6] <- "BinMethods"
     df$Celltypes <- factor(df$Celltypes,
         levels=unique(df$Celltypes))
@@ -1195,7 +1226,8 @@ aggregateFNR_merge <- function(E){
         levels=rev(unique(df$CCIPatterns)))
     df$CCI_Complexity <- factor(df$CCI_Complexity,
         levels=c("OnetoOne", "ManytoMany"))
-    df$BinMethods <- factor(df$BinMethods, levels=BinMethods)
+    df$BinMethods <- factor(df$BinMethods,
+        levels=BinMethods_Paper)
     df
 }
 
@@ -1210,7 +1242,7 @@ Plot_FNR_Merge <- function(E, outfile){
     gg <- gg + theme(axis.text.x=element_blank())
     gg <- gg + theme(axis.title.y=element_text(size = 30))
     gg <- gg + theme(axis.text.y=element_text(size = 30))
-    gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
+    gg <- gg + theme(legend.title = element_blank())
     gg <- gg + theme(legend.text = element_text(size = 30, hjust = 0))
     gg <- gg + theme(legend.key.size=unit(1, "cm"))
     gg <- gg + theme(legend.key.width=unit(1, "cm"))
@@ -1361,19 +1393,13 @@ Plot_PR_eachCCI <- function(method, E, outfile){
 }
 
 aggregatePR_merge <- function(E){
-    BinMethods <- c(
-        "labelpermutation",
-        "labelpermutation2",
-        "halpern",
-        "cabelloaguilar",
-        "previous_sctensor",
-        "sctensor")
     df <- data.frame()
     for(i in seq_along(BinMethods)){
         tmp.df <- aggregatePR_eachCCI(E, BinMethods[i])
         tmp.df <- cbind(tmp.df, BinMethods[i])
         df <- rbind(df, tmp.df)
     }
+    df[,6] <- BinMethods_Paper[df[,6]]
     colnames(df)[6] <- "BinMethods"
     df$Celltypes <- factor(df$Celltypes,
         levels=unique(df$Celltypes))
@@ -1381,7 +1407,8 @@ aggregatePR_merge <- function(E){
         levels=rev(unique(df$CCIPatterns)))
     df$CCI_Complexity <- factor(df$CCI_Complexity,
         levels=c("OnetoOne", "ManytoMany"))
-    df$BinMethods <- factor(df$BinMethods, levels=BinMethods)
+    df$BinMethods <- factor(df$BinMethods,
+        levels=BinMethods_Paper)
     df
 }
 
@@ -1396,7 +1423,7 @@ Plot_PR_Merge <- function(E, outfile){
     gg <- gg + theme(axis.text.x=element_blank())
     gg <- gg + theme(axis.title.y=element_text(size = 30))
     gg <- gg + theme(axis.text.y=element_text(size = 30))
-    gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
+    gg <- gg + theme(legend.title = element_blank())
     gg <- gg + theme(legend.text = element_text(size = 30, hjust = 0))
     gg <- gg + theme(legend.key.size=unit(1, "cm"))
     gg <- gg + theme(legend.key.width=unit(1, "cm"))
@@ -1693,23 +1720,13 @@ Plot_AUC_eachCCI <- function(method, E, outfile){
 }
 
 aggregateAUC_merge <- function(E){
-    Methods <- c(
-        "labelpermutation_tensor",
-        "labelpermutation",
-        "labelpermutation2_tensor",
-        "labelpermutation2",
-        "halpern_tensor",
-        "halpern",
-        "cabelloaguilar_tensor",
-        "cabelloaguilar",
-        "previous_sctensor",
-        "sctensor")
     df <- data.frame()
     for(i in seq_along(Methods)){
         tmp.df <- aggregateAUC_eachCCI(E, Methods[i])
         tmp.df <- cbind(tmp.df, Methods[i])
         df <- rbind(df, tmp.df)
     }
+    df[,6] <- Methods_Paper[df[,6]]
     colnames(df)[6] <- "Methods"
     df$Celltypes <- factor(df$Celltypes,
         levels=unique(df$Celltypes))
@@ -1717,7 +1734,8 @@ aggregateAUC_merge <- function(E){
         levels=rev(unique(df$CCIPatterns)))
     df$CCI_Complexity <- factor(df$CCI_Complexity,
         levels=c("OnetoOne", "ManytoMany"))
-    df$Methods <- factor(df$Methods, levels=Methods)
+    df$Methods <- factor(df$Methods,
+        levels=Methods_Paper)
     df
 }
 
@@ -1732,7 +1750,7 @@ Plot_AUC_Merge <- function(E, outfile){
     gg <- gg + theme(axis.text.x=element_blank())
     gg <- gg + theme(axis.title.y=element_text(size = 30))
     gg <- gg + theme(axis.text.y=element_text(size = 30))
-    gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
+    gg <- gg + theme(legend.title = element_blank())
     gg <- gg + theme(legend.text = element_text(size = 30, hjust = 0))
     gg <- gg + theme(legend.key.size=unit(1, "cm"))
     gg <- gg + theme(legend.key.width=unit(1, "cm"))
@@ -1881,23 +1899,13 @@ Plot_AUCPR_eachCCI <- function(method, E, outfile){
 }
 
 aggregateAUCPR_merge <- function(E){
-    Methods <- c(
-        "labelpermutation_tensor",
-        "labelpermutation",
-        "labelpermutation2_tensor",
-        "labelpermutation2",
-        "halpern_tensor",
-        "halpern",
-        "cabelloaguilar_tensor",
-        "cabelloaguilar",
-        "previous_sctensor",
-        "sctensor")
     df <- data.frame()
     for(i in seq_along(Methods)){
         tmp.df <- aggregateAUCPR_eachCCI(E, Methods[i])
         tmp.df <- cbind(tmp.df, Methods[i])
         df <- rbind(df, tmp.df)
     }
+    df[,6] <- Methods_Paper[df[,6]]
     colnames(df)[6] <- "Methods"
     df$Celltypes <- factor(df$Celltypes,
         levels=unique(df$Celltypes))
@@ -1905,7 +1913,8 @@ aggregateAUCPR_merge <- function(E){
         levels=rev(unique(df$CCIPatterns)))
     df$CCI_Complexity <- factor(df$CCI_Complexity,
         levels=c("OnetoOne", "ManytoMany"))
-    df$Methods <- factor(df$Methods, levels=Methods)
+    df$Methods <- factor(df$Methods,
+        levels=Methods_Paper)
     df
 }
 
@@ -1920,7 +1929,7 @@ Plot_AUCPR_Merge <- function(E, outfile){
     gg <- gg + theme(axis.text.x=element_blank())
     gg <- gg + theme(axis.title.y=element_text(size = 30))
     gg <- gg + theme(axis.text.y=element_text(size = 30))
-    gg <- gg + theme(legend.title = element_text(size = 30, hjust = 0))
+    gg <- gg + theme(legend.title = element_blank())
     gg <- gg + theme(legend.text = element_text(size = 30, hjust = 0))
     gg <- gg + theme(legend.key.size=unit(1, "cm"))
     gg <- gg + theme(legend.key.width=unit(1, "cm"))
@@ -2126,7 +2135,7 @@ PRCCurve <- function(score, actual){
     list(x=x, y=y)
 }
 
-ROC_AUC_BIN_F <- function(ncelltypes, cif, trueCaH, out, outfile1, outfile2, outfile3, outfile4, outfile5, outfile6, outfile7, outfile8, outfile9, outfile10, pval=FALSE){
+ROC_AUC_BIN_F <- function(ncelltypes, cif, trueCaH, out, outfile1, outfile2, outfile3, outfile4, outfile5, outfile6, outfile7, outfile8, outfile9, outfile10, outfile11, outfile12, outfile13, pval=FALSE){
     # Scoring
     if(pval){
         score <- Tensor2Vec(ncelltypes, cif, 1 - out$pval)
@@ -2189,6 +2198,9 @@ ROC_AUC_BIN_F <- function(ncelltypes, cif, trueCaH, out, outfile1, outfile2, out
     save(fpr, file=outfile8)
     save(fnr, file=outfile9)
     save(pr, file=outfile10)
+    file.create(outfile11)
+    file.create(outfile12)
+    save(score, file=outfile13)
 }
 
 BIN <- function(out, x){
@@ -2261,12 +2273,14 @@ ROCAUCF2 <- function(trueCaH, score, bin){
             # PR
             pr <- PR(as.vector(bin[[maxposition2]]@data))
             # Output
-            list(auc=auc, roc=roc, f=f, aucpr=aucpr,
-                prc=prc, mcc=mcc, fpr=fpr, fnr=fnr, pr=pr)
+            list(auc=auc, roc=roc, f=f, aucpr=aucpr, prc=prc,
+                mcc=mcc, fpr=fpr, fnr=fnr, pr=pr,
+                maxposition=maxposition,
+                maxposition2=maxposition2)
         }, other=list(score=score, bin=bin))
 }
 
-ROC_AUC_BIN_F_previous_sctensor <- function(trueCaH, out, outfile1, outfile2, outfile3, outfile4, outfile5, outfile6, outfile7, outfile8, outfile9, outfile10){
+ROC_AUC_BIN_F_previous_sctensor <- function(trueCaH, out, outfile1, outfile2, outfile3, outfile4, outfile5, outfile6, outfile7, outfile8, outfile9, outfile10, outfile11, outfile12, outfile13){
     # Scoring
     score <- apply(out$index, 1, function(x){
         nnTensor::recTensor(x[4],
@@ -2315,6 +2329,12 @@ ROC_AUC_BIN_F_previous_sctensor <- function(trueCaH, out, outfile1, outfile2, ou
     pr <- lapply(rocaucf, function(raf){
         raf$pr
     })
+    maxposition <- lapply(rocaucf, function(raf){
+        raf$maxposition
+    })
+    maxposition2 <- lapply(rocaucf, function(raf){
+        raf$maxposition2
+    })
     # Save
     save(roc, file=outfile1)
     save(auc, file=outfile2)
@@ -2326,6 +2346,9 @@ ROC_AUC_BIN_F_previous_sctensor <- function(trueCaH, out, outfile1, outfile2, ou
     save(fpr, file=outfile8)
     save(fnr, file=outfile9)
     save(pr, file=outfile10)
+    save(maxposition, file=outfile11)
+    save(maxposition2, file=outfile12)
+    save(score, file=outfile13)
 }
 
 # 厳しいととってこない
@@ -2366,7 +2389,7 @@ BIN_2 <- function(out, x){
     list(ligand=L, receptor=R)
 }
 
-ROC_AUC_BIN_F_sctensor <- function(trueCaH, out, outfile1, outfile2, outfile3, outfile4, outfile5, outfile6, outfile7, outfile8, outfile9, outfile10){
+ROC_AUC_BIN_F_sctensor <- function(trueCaH, out, outfile1, outfile2, outfile3, outfile4, outfile5, outfile6, outfile7, outfile8, outfile9, outfile10, outfile11, outfile12, outfile13){
     # Scoring
     score <- apply(out$index, 1, function(x){
         nnTensor::recTensor(x[4],
@@ -2425,6 +2448,12 @@ ROC_AUC_BIN_F_sctensor <- function(trueCaH, out, outfile1, outfile2, outfile3, o
     pr <- lapply(rocaucf, function(raf){
         raf$pr
     })
+    maxposition <- lapply(rocaucf, function(raf){
+        raf$maxposition
+    })
+    maxposition2 <- lapply(rocaucf, function(raf){
+        raf$maxposition2
+    })
     # Save
     save(roc, file=outfile1)
     save(auc, file=outfile2)
@@ -2436,6 +2465,9 @@ ROC_AUC_BIN_F_sctensor <- function(trueCaH, out, outfile1, outfile2, outfile3, o
     save(fpr, file=outfile8)
     save(fnr, file=outfile9)
     save(pr, file=outfile10)
+    save(maxposition, file=outfile11)
+    save(maxposition2, file=outfile12)
+    save(score, file=outfile13)
 }
 
 groundTruth <- function(spl){

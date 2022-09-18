@@ -67,7 +67,7 @@ BINMETHODS = [
     "previous_sctensor",
     "sctensor"]
 
-ES = ["E5", "E10"]
+ES = ["E2", "E5", "E10"]
 
 IDS = [str(x) for x in list(range(1, 6))]
 
@@ -92,8 +92,8 @@ rule syn_all:
             binmethod=BINMETHODS),
         expand('plot/TR.png'),
         expand('plot/TR_eachCCI.png'),
-        expand('plot/{e}/L-R/CHECK_{method}',
-            e=ES, method=METHODS),
+        expand('plot/{e}/L-R/CHECK_{binmethod}',
+            e=ES, binmethod=BINMETHODS),
         expand('plot/{e}/{types}/{types}.png',
             e=ES, types=['AUC', 'AUCPR', 'Time', 'Memory',
                 'F', 'MCC', 'FPR', 'FNR', 'PR'])
@@ -337,7 +337,10 @@ rule syn_roc_auc_bin_f:
         out7='output/{e}/{method}/MCC/{sample}.RData',
         out8='output/{e}/{method}/FPR/{sample}.RData',
         out9='output/{e}/{method}/FNR/{sample}.RData',
-        out10='output/{e}/{method}/PR/{sample}.RData'
+        out10='output/{e}/{method}/PR/{sample}.RData',
+        out11='output/{e}/{method}/MaxPosition/{sample}.RData',
+        out12='output/{e}/{method}/MaxPosition2/{sample}.RData',
+        out13='output/{e}/{method}/Score/{sample}.RData'
     resources:
         mem_gb=5000
     wildcard_constraints:
@@ -1628,17 +1631,17 @@ rule syn_plot_lr_e2:
             sample=SAMPLES),
         aggregate_method_e2
     output:
-        'plot/E2/L-R/CHECK_{method}'
+        'plot/E2/L-R/CHECK_{binmethod}'
     resources:
         mem_gb=50
     wildcard_constraints:
-        method='|'.join([re.escape(x) for x in METHODS])
+        binmethod='|'.join([re.escape(x) for x in BINMETHODS])
     benchmark:
-        'benchmarks/plot_L-R_E2_{method}.txt'
+        'benchmarks/plot_L-R_E2_{binmethod}.txt'
     log:
-        'logs/plot_L-R_E2_{method}.log'
+        'logs/plot_L-R_E2_{binmethod}.log'
     shell:
-        'src/plot_LR.sh {wildcards.method} E2 {output} > {log}'
+        'src/plot_LR.sh {wildcards.binmethod} E2 {output} > {log}'
 
 rule syn_plot_lr_e5:
     input:
@@ -1646,17 +1649,17 @@ rule syn_plot_lr_e5:
             sample=SAMPLES),
         aggregate_method_e5
     output:
-        'plot/E5/L-R/CHECK_{method}'
+        'plot/E5/L-R/CHECK_{binmethod}'
     resources:
         mem_gb=50
     wildcard_constraints:
-        method='|'.join([re.escape(x) for x in METHODS])
+        binmethod='|'.join([re.escape(x) for x in BINMETHODS])
     benchmark:
-        'benchmarks/plot_L-R_E5_{method}.txt'
+        'benchmarks/plot_L-R_E5_{binmethod}.txt'
     log:
-        'logs/plot_L-R_E5_{method}.log'
+        'logs/plot_L-R_E5_{binmethod}.log'
     shell:
-        'src/plot_LR.sh {wildcards.method} E5 {output} > {log}'
+        'src/plot_LR.sh {wildcards.binmethod} E5 {output} > {log}'
 
 rule syn_plot_lr_e10:
     input:
@@ -1664,14 +1667,14 @@ rule syn_plot_lr_e10:
             sample=SAMPLES),
         aggregate_method_e10
     output:
-        'plot/E10/L-R/CHECK_{method}'
+        'plot/E10/L-R/CHECK_{binmethod}'
     resources:
         mem_gb=50
     wildcard_constraints:
-        method='|'.join([re.escape(x) for x in METHODS])
+        binmethod='|'.join([re.escape(x) for x in BINMETHODS])
     benchmark:
-        'benchmarks/plot_L-R_E10_{method}.txt'
+        'benchmarks/plot_L-R_E10_{binmethod}.txt'
     log:
-        'logs/plot_L-R_E10_{method}.log'
+        'logs/plot_L-R_E10_{binmethod}.log'
     shell:
-        'src/plot_LR.sh {wildcards.method} E10 {output} > {log}'
+        'src/plot_LR.sh {wildcards.binmethod} E10 {output} > {log}'

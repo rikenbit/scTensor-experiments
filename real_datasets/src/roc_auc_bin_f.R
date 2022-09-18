@@ -13,6 +13,9 @@ outfile7 <- commandArgs(trailingOnly=TRUE)[9]
 outfile8 <- commandArgs(trailingOnly=TRUE)[10]
 outfile9 <- commandArgs(trailingOnly=TRUE)[11]
 outfile10 <- commandArgs(trailingOnly=TRUE)[12]
+outfile11 <- commandArgs(trailingOnly=TRUE)[13]
+outfile12 <- commandArgs(trailingOnly=TRUE)[14]
+outfile13 <- commandArgs(trailingOnly=TRUE)[15]
 
 # Data loading
 load(infile1)
@@ -25,20 +28,20 @@ method <- strsplit(infile1, "/")[[1]][2]
 if(method %in% tensor.methods){
     ROC_AUC_BIN_F(ncelltypes, cif, trueCaH, out1,
     	outfile1, outfile2, outfile3, outfile4,
-        outfile5, outfile6, outfile7, outfile8, outfile9, outfile10, pval=FALSE)
+        outfile5, outfile6, outfile7, outfile8, outfile9, outfile10, outfile11, outfile12, outfile13, pval=FALSE)
 }
 if(method %in% pval.methods){
     ROC_AUC_BIN_F(ncelltypes, cif, trueCaH, out2,
     	outfile1, outfile2, outfile3, outfile4,
-        outfile5, outfile6, outfile7, outfile8, outfile9, outfile10, pval=TRUE)
+        outfile5, outfile6, outfile7, outfile8, outfile9, outfile10, outfile11, outfile12, outfile13, pval=TRUE)
 }
 if(method == "previous_sctensor"){
     ROC_AUC_BIN_F_previous_sctensor(trueCaH, out,
     	outfile1, outfile2, outfile3, outfile4,
-        outfile5, outfile6, outfile7, outfile8, outfile9, outfile10)
+        outfile5, outfile6, outfile7, outfile8, outfile9, outfile10, outfile11, outfile12, outfile13)
 }
 if(method == "sctensor"){
     ROC_AUC_BIN_F_sctensor(trueCaH, out,
     	outfile1, outfile2, outfile3, outfile4,
-        outfile5, outfile6, outfile7, outfile8, outfile9, outfile10)
+        outfile5, outfile6, outfile7, outfile8, outfile9, outfile10, outfile11, outfile12, outfile13)
 }
